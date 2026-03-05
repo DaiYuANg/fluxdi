@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::core::domain::todo::{Todo, TodoRepository};
 use crate::infra::persistence::sqlite::SqliteClient;
+use rusqlite::{OptionalExtension, params};
 
 pub struct TodoSqliteRepository {
     sqlite_client: Arc<SqliteClient>,
@@ -22,22 +23,23 @@ impl TodoRepository for TodoSqliteRepository {
             .lock()
             .map_err(|e| format!("Failed to lock connection: {}", e))?;
 
-        let query = "SELECT id, title, description, completed FROM todos";
         let mut statement = connection
-            .prepare(query)
+            .prepare("SELECT id, title, description, completed FROM todos")
             .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
-        let mut todos = Vec::new();
-        while let Ok(sqlite::State::Row) = statement.next() {
-            todos.push(Todo {
-                id: statement.read::<i64, _>(0).map_err(|e| e.to_string())? as u32,
-                title: statement.read::<String, _>(1).map_err(|e| e.to_string())?,
-                description: statement.read::<String, _>(2).map_err(|e| e.to_string())?,
-                completed: statement.read::<i64, _>(3).map_err(|e| e.to_string())? != 0,
-            });
-        }
+        let rows = statement
+            .query_map([], |row| {
+                Ok(Todo {
+                    id: row.get::<_, i64>(0)? as u32,
+                    title: row.get::<_, String>(1)?,
+                    description: row.get::<_, String>(2)?,
+                    completed: row.get::<_, i64>(3)? != 0,
+                })
+            })
+            .map_err(|e| format!("Failed to query todos: {}", e))?;
 
-        Ok(todos)
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|e| format!("Failed to read todos: {}", e))
     }
 
     async fn get_by_id(&self, id: u32) -> Result<Option<Todo>, String> {
@@ -47,25 +49,21 @@ impl TodoRepository for TodoSqliteRepository {
             .lock()
             .map_err(|e| format!("Failed to lock connection: {}", e))?;
 
-        let query = "SELECT id, title, description, completed FROM todos WHERE id = ?";
         let mut statement = connection
-            .prepare(query)
+            .prepare("SELECT id, title, description, completed FROM todos WHERE id = ?")
             .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
         statement
-            .bind((1, id as i64))
-            .map_err(|e| format!("Failed to bind parameter: {}", e))?;
-
-        if let Ok(sqlite::State::Row) = statement.next() {
-            Ok(Some(Todo {
-                id: statement.read::<i64, _>(0).map_err(|e| e.to_string())? as u32,
-                title: statement.read::<String, _>(1).map_err(|e| e.to_string())?,
-                description: statement.read::<String, _>(2).map_err(|e| e.to_string())?,
-                completed: statement.read::<i64, _>(3).map_err(|e| e.to_string())? != 0,
-            }))
-        } else {
-            Ok(None)
-        }
+            .query_row(params![id as i64], |row| {
+                Ok(Todo {
+                    id: row.get::<_, i64>(0)? as u32,
+                    title: row.get::<_, String>(1)?,
+                    description: row.get::<_, String>(2)?,
+                    completed: row.get::<_, i64>(3)? != 0,
+                })
+            })
+            .optional()
+            .map_err(|e| format!("Failed to fetch todo by id: {}", e))
     }
 
     async fn create(
@@ -80,33 +78,14 @@ impl TodoRepository for TodoSqliteRepository {
             .lock()
             .map_err(|e| format!("Failed to lock connection: {}", e))?;
 
-        let query =
-            "INSERT INTO todos (user_id, title, description, completed) VALUES (?, ?, ?, 0)";
-        let mut statement = connection
-            .prepare(query)
-            .map_err(|e| format!("Failed to prepare query: {}", e))?;
-
-        statement
-            .bind((1, user_id as i64))
-            .map_err(|e| format!("Failed to bind user_id: {}", e))?;
-        statement
-            .bind((2, title.as_str()))
-            .map_err(|e| format!("Failed to bind title: {}", e))?;
-        statement
-            .bind((3, description.as_str()))
-            .map_err(|e| format!("Failed to bind description: {}", e))?;
-
-        statement
-            .next()
+        connection
+            .execute(
+                "INSERT INTO todos (user_id, title, description, completed) VALUES (?, ?, ?, 0)",
+                params![user_id as i64, title.as_str(), description.as_str()],
+            )
             .map_err(|e| format!("Failed to execute insert: {}", e))?;
 
-        let query = "SELECT last_insert_rowid()";
-        let mut stmt = connection
-            .prepare(query)
-            .map_err(|e| format!("Failed to get last insert id: {}", e))?;
-        stmt.next()
-            .map_err(|e| format!("Failed to get last insert id: {}", e))?;
-        let id = stmt.read::<i64, _>(0).map_err(|e| e.to_string())? as u32;
+        let id = connection.last_insert_rowid() as u32;
 
         Ok(Todo {
             id,
@@ -124,23 +103,14 @@ impl TodoRepository for TodoSqliteRepository {
                 .lock()
                 .map_err(|e| format!("Failed to lock connection: {}", e))?;
 
-            let query = "UPDATE todos SET completed = ? WHERE id = ?";
-            let mut statement = connection
-                .prepare(query)
-                .map_err(|e| format!("Failed to prepare query: {}", e))?;
-
-            statement
-                .bind((1, if completed { 1i64 } else { 0i64 }))
-                .map_err(|e| format!("Failed to bind completed: {}", e))?;
-            statement
-                .bind((2, id as i64))
-                .map_err(|e| format!("Failed to bind id: {}", e))?;
-
-            statement
-                .next()
+            let affected = connection
+                .execute(
+                    "UPDATE todos SET completed = ? WHERE id = ?",
+                    params![if completed { 1i64 } else { 0i64 }, id as i64],
+                )
                 .map_err(|e| format!("Failed to execute update: {}", e))?;
 
-            connection.change_count() > 0
+            affected > 0
         };
 
         if updated {
@@ -157,19 +127,10 @@ impl TodoRepository for TodoSqliteRepository {
             .lock()
             .map_err(|e| format!("Failed to lock connection: {}", e))?;
 
-        let query = "DELETE FROM todos WHERE id = ?";
-        let mut statement = connection
-            .prepare(query)
-            .map_err(|e| format!("Failed to prepare query: {}", e))?;
-
-        statement
-            .bind((1, id as i64))
-            .map_err(|e| format!("Failed to bind id: {}", e))?;
-
-        statement
-            .next()
+        let affected = connection
+            .execute("DELETE FROM todos WHERE id = ?", params![id as i64])
             .map_err(|e| format!("Failed to execute delete: {}", e))?;
 
-        Ok(connection.change_count() > 0)
+        Ok(affected > 0)
     }
 }

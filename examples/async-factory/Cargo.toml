@@ -1,0 +1,13 @@
+[package]
+name = "async-factory-example"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+authors.workspace = true
+
+[dependencies]
+fluxdi = { path = "../../fluxdi", features = ["thread-safe", "async-factory"] }
+tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros"] }
+

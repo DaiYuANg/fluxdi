@@ -1,0 +1,48 @@
+# Getting Started
+
+## Install
+
+```toml
+[dependencies]
+fluxdi = "1.1.0"
+```
+
+For local workspace usage:
+
+```toml
+[dependencies]
+fluxdi = { path = "../fluxdi" }
+```
+
+## Minimal Example
+
+```rust
+use fluxdi::{Application, Injector, Module, Provider, Shared};
+
+#[derive(Debug)]
+struct Config(&'static str);
+
+struct AppModule;
+
+impl Module for AppModule {
+    fn configure(&self, injector: &Injector) -> Result<(), fluxdi::Error> {
+        injector.provide::<Config>(Provider::root(|_| Shared::new(Config("prod"))));
+        Ok(())
+    }
+}
+
+fn main() {
+    let mut app = Application::new(AppModule);
+    app.bootstrap_sync().expect("bootstrap failed");
+
+    let config = app.injector().resolve::<Config>();
+    println!("mode={}", config.0);
+}
+```
+
+## Build And Test
+
+```bash
+cargo check --workspace
+cargo test --workspace
+```

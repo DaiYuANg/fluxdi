@@ -1,6 +1,6 @@
 ---
 name: ✨ Feature Request
-about: Suggest an enhancement or new feature for SaDi
+about: Suggest an enhancement or new feature for FluxDI
 title: '[Feature] '
 labels: ['enhancement', 'feature-request']
 assignees: ''
@@ -26,7 +26,7 @@ assignees: ''
 
 ```rust
 // How would you like to use this feature?
-let container = SaDi::new()
+let container = FluxDI::new()
     .your_new_feature(parameters);
     
 // Example usage
@@ -47,7 +47,7 @@ let result = container.some_new_method();
 
 ### Related Features
 
-<!-- Are there existing SaDi features this would integrate with? -->
+<!-- Are there existing FluxDI features this would integrate with? -->
 
 - [ ] Service registration
 - [ ] Dependency resolution
@@ -59,7 +59,7 @@ let result = container.some_new_method();
 ### Expected Benefits
 
 - **Performance:** How this would improve performance (if applicable)
-- **Developer Experience:** How this would make SaDi easier to use
+- **Developer Experience:** How this would make FluxDI easier to use
 - **Functionality:** What new capabilities this would enable
 
 ## 🧪 Implementation Considerations
@@ -94,7 +94,7 @@ let result = container.some_new_method();
 - [ ] I have provided a clear use case for this feature
 - [ ] I have considered the impact on existing functionality
 - [ ] I have provided examples of how I'd like to use this feature
-- [ ] This feature aligns with SaDi's goals (type-safe, zero-cost abstraction, simple API)
+- [ ] This feature aligns with FluxDI's goals (type-safe, zero-cost abstraction, simple API)
 
 ---
 

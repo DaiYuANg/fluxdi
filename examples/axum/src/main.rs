@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::Path,
     http::StatusCode,
     routing::{delete, get, post, put},
 };
@@ -10,14 +10,12 @@ use complex::core::application::use_case::{
 };
 use complex::core::domain::todo::Todo;
 use complex::core::domain::user::User;
-use sadi::Injector;
+use complex::infra::{di::RootModule, persistence::sqlite::SqliteClient};
+use fluxdi::axum::{InjectorState, Resolved};
+use fluxdi::{
+    Application, Error, Injector, Module, Provider, Shared, module::ModuleLifecycleFuture,
+};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-
-#[derive(Clone)]
-struct AppState {
-    injector: Arc<Injector>,
-}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CreateUserRequest {
@@ -67,19 +65,9 @@ impl ApiResponse<()> {
 
 // User Handlers
 async fn create_user(
-    State(state): State<AppState>,
+    Resolved(create_user): Resolved<CreateUserUseCase>,
     Json(req): Json<CreateUserRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<User>>), (StatusCode, String)> {
-    let create_user = state
-        .injector
-        .try_resolve::<CreateUserUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let user = create_user
         .execute(req.name, req.email)
         .await
@@ -89,18 +77,8 @@ async fn create_user(
 }
 
 async fn get_all_users(
-    State(state): State<AppState>,
+    Resolved(get_all): Resolved<GetAllUserUseCase>,
 ) -> Result<Json<ApiResponse<Vec<User>>>, (StatusCode, String)> {
-    let get_all = state
-        .injector
-        .try_resolve::<GetAllUserUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let users = get_all
         .execute()
         .await
@@ -110,19 +88,9 @@ async fn get_all_users(
 }
 
 async fn get_user_by_id(
-    State(state): State<AppState>,
+    Resolved(get_by_id): Resolved<GetByIdUserUseCase>,
     Path(id): Path<i64>,
 ) -> Result<Json<ApiResponse<User>>, (StatusCode, String)> {
-    let get_by_id = state
-        .injector
-        .try_resolve::<GetByIdUserUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let user = get_by_id
         .execute(id as u32)
         .await
@@ -133,19 +101,9 @@ async fn get_user_by_id(
 }
 
 async fn delete_user(
-    State(state): State<AppState>,
+    Resolved(delete): Resolved<DeleteUserUseCase>,
     Path(id): Path<i64>,
 ) -> Result<(StatusCode, Json<ApiResponse<bool>>), (StatusCode, String)> {
-    let delete = state
-        .injector
-        .try_resolve::<DeleteUserUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let deleted = delete
         .execute(id as u32)
         .await
@@ -156,19 +114,9 @@ async fn delete_user(
 
 // Todo Handlers
 async fn create_todo(
-    State(state): State<AppState>,
+    Resolved(create_todo): Resolved<CreateTodoUseCase>,
     Json(req): Json<CreateTodoRequest>,
 ) -> Result<(StatusCode, Json<ApiResponse<Todo>>), (StatusCode, String)> {
-    let create_todo = state
-        .injector
-        .try_resolve::<CreateTodoUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let todo = create_todo
         .execute(req.user_id as u32, req.title, req.description)
         .await
@@ -178,18 +126,8 @@ async fn create_todo(
 }
 
 async fn get_all_todos(
-    State(state): State<AppState>,
+    Resolved(get_all): Resolved<GetAllTodoUseCase>,
 ) -> Result<Json<ApiResponse<Vec<Todo>>>, (StatusCode, String)> {
-    let get_all = state
-        .injector
-        .try_resolve::<GetAllTodoUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let todos = get_all
         .execute()
         .await
@@ -199,20 +137,10 @@ async fn get_all_todos(
 }
 
 async fn update_todo_status(
-    State(state): State<AppState>,
+    Resolved(update): Resolved<UpdateStatusTodoUseCase>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateTodoStatusRequest>,
 ) -> Result<Json<ApiResponse<Todo>>, (StatusCode, String)> {
-    let update = state
-        .injector
-        .try_resolve::<UpdateStatusTodoUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let todo = update
         .execute(id as u32, req.completed)
         .await
@@ -223,19 +151,9 @@ async fn update_todo_status(
 }
 
 async fn delete_todo(
-    State(state): State<AppState>,
+    Resolved(delete): Resolved<DeleteTodoUseCase>,
     Path(id): Path<i64>,
 ) -> Result<(StatusCode, Json<ApiResponse<bool>>), (StatusCode, String)> {
-    let delete = state
-        .injector
-        .try_resolve::<DeleteTodoUseCase>()
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to resolve use case: {:?}", e),
-            )
-        })?;
-
     let deleted = delete
         .execute(id as u32)
         .await
@@ -248,48 +166,70 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
-#[tokio::main]
-async fn main() {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
-
-    // Build the application with dependency injection
-    let app_di = complex::infra::di::build().expect("Failed to build application");
-    let state = AppState {
-        injector: app_di.injector().clone(),
-    };
-
-    // Build router
-    let app = Router::new()
-        // Health check
+fn build_router(state: InjectorState) -> Router {
+    Router::new()
         .route("/health", get(health_check))
-        // User routes
         .route("/users", post(create_user))
         .route("/users", get(get_all_users))
         .route("/users/{id}", get(get_user_by_id))
         .route("/users/{id}", delete(delete_user))
-        // Todo routes
         .route("/todos", post(create_todo))
         .route("/todos", get(get_all_todos))
         .route("/todos/{id}/status", put(update_todo_status))
         .route("/todos/{id}", delete(delete_todo))
-        .with_state(state);
+        .with_state(state)
+}
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .expect("Failed to bind to address");
+struct WebApiModule;
 
-    println!("🚀 Server running on http://127.0.0.1:3000");
-    println!("📚 Available endpoints:");
-    println!("  GET    /health");
-    println!("  POST   /users");
-    println!("  GET    /users");
-    println!("  GET    /users/:id");
-    println!("  DELETE /users/:id");
-    println!("  POST   /todos");
-    println!("  GET    /todos");
-    println!("  PUT    /todos/:id/status");
-    println!("  DELETE /todos/:id");
+impl Module for WebApiModule {
+    fn imports(&self) -> Vec<Box<dyn Module>> {
+        vec![Box::new(RootModule)]
+    }
 
-    axum::serve(listener, app).await.expect("Server error");
+    fn configure(&self, injector: &Injector) -> Result<(), Error> {
+        injector.provide::<SqliteClient>(Provider::root(|_| {
+            let client = SqliteClient::new().expect("Failed to load sqlite client");
+            Shared::new(client)
+        }));
+        Ok(())
+    }
+
+    fn on_start(&self, injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async move {
+            let state = InjectorState::new(injector.clone());
+            let app = build_router(state);
+
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+                .await
+                .map_err(|err| {
+                    Error::module_lifecycle_failed("WebApiModule", "on_start", &err.to_string())
+                })?;
+
+            println!("🚀 Server running on http://127.0.0.1:3000");
+            println!("📚 Available endpoints:");
+            println!("  GET    /health");
+            println!("  POST   /users");
+            println!("  GET    /users");
+            println!("  GET    /users/:id");
+            println!("  DELETE /users/:id");
+            println!("  POST   /todos");
+            println!("  GET    /todos");
+            println!("  PUT    /todos/:id/status");
+            println!("  DELETE /todos/:id");
+
+            axum::serve(listener, app).await.map_err(|err| {
+                Error::module_lifecycle_failed("WebApiModule", "on_start", &err.to_string())
+            })
+        })
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Error> {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
+
+    let mut app = Application::new(WebApiModule);
+    app.bootstrap().await
 }

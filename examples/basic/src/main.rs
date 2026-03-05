@@ -1,4 +1,4 @@
-use sadi::{Injector, Provider, Shared};
+use fluxdi::{Injector, Provider, Shared};
 
 // ============================================================
 // SERVICE TYPES
@@ -115,7 +115,7 @@ impl Cache {
 
 fn main() {
     println!("╔════════════════════════════════════════════════════════╗");
-    println!("║        SADI - Dependency Injection Container           ║");
+    println!("║        FLUXDI - Dependency Injection Container           ║");
     println!("║                  Complex Example                       ║");
     println!("╚════════════════════════════════════════════════════════╝\n");
 

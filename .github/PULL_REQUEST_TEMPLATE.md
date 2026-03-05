@@ -1,5 +1,5 @@
 <!--
-Thank you for contributing to SaDi! Please provide a clear description of your changes
+Thank you for contributing to FluxDI! Please provide a clear description of your changes
 and ensure all requirements below are met.
 
 All bug fixes and new features should include tests and documentation updates.

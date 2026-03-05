@@ -1,6 +1,11 @@
 use std::{any::TypeId, cell::RefCell};
 
 use crate::error::{Error, ErrorKind};
+#[cfg(feature = "tracing")]
+use crate::observability::EVENT_CIRCULAR_DEPENDENCY;
+
+#[cfg(feature = "tracing")]
+use tracing::debug;
 
 thread_local! {
     static RESOLVE_STACK: RefCell<Vec<TypeId>> = const { RefCell::new(Vec::new()) };
@@ -16,6 +21,14 @@ impl ResolveGuard {
             let mut stack = stack.borrow_mut();
 
             if stack.contains(&type_id) {
+                #[cfg(feature = "tracing")]
+                debug!(
+                    event = EVENT_CIRCULAR_DEPENDENCY,
+                    type_id = ?type_id,
+                    depth = stack.len(),
+                    "Circular dependency detected during resolve"
+                );
+
                 return Err(Error::new(
                     ErrorKind::CircularDependency,
                     format!(

@@ -13,7 +13,7 @@
 //! # Examples
 //!
 //! ```
-//! use sadi::runtime::{Shared, Store};
+//! use fluxdi::runtime::{Shared, Store};
 //!
 //! // Create a shared reference to a store
 //! let value = Store::new(42);
@@ -39,7 +39,7 @@ use std::{cell::RefCell, rc::Rc};
 /// # Examples
 ///
 /// ```
-/// use sadi::runtime::Shared;
+/// use fluxdi::runtime::Shared;
 ///
 /// let data = Shared::new(vec![1, 2, 3]);
 /// let clone = Shared::clone(&data);
@@ -62,7 +62,7 @@ pub type Shared<T> = Rc<T>;
 /// # Examples
 ///
 /// ```
-/// use sadi::runtime::Store;
+/// use fluxdi::runtime::Store;
 ///
 /// let store = Store::new(42);
 /// #[cfg(feature = "thread-safe")]

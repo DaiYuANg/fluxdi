@@ -1,4 +1,4 @@
-use sadi::{Application, Module, Provider, Shared};
+use fluxdi::{Application, Module, Provider, Shared};
 
 use crate::infra::persistence::sqlite::SqliteClient;
 
@@ -25,7 +25,7 @@ pub fn build() -> Result<Application, String> {
         Shared::new(client)
     }));
 
-    app.bootstrap();
+    app.bootstrap_sync().map_err(|err| err.to_string())?;
 
     Ok(app)
 }

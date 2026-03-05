@@ -19,7 +19,7 @@
 //! # Examples
 //!
 //! ```
-//! use sadi::{Provider, Injector, Shared};
+//! use fluxdi::{Provider, Injector, Shared};
 //!
 //! // Concrete type - singleton
 //! struct Database {
@@ -36,7 +36,7 @@
 //! For trait objects:
 //!
 //! ```
-//! use sadi::{Provider, Shared};
+//! use fluxdi::{Provider, Shared};
 //!
 //! trait Logger {}
 //! struct ConsoleLogger;
@@ -47,13 +47,359 @@
 //! });
 //! ```
 
+use crate::error::Error;
 use crate::injector::Injector;
 use crate::instance::Instance;
 use crate::runtime::Shared;
 use crate::scope::Scope;
 
+#[cfg(feature = "async-factory")]
+use std::future::Future;
+#[cfg(feature = "async-factory")]
+use std::pin::Pin;
+use std::time::Duration;
+
+#[cfg(all(feature = "thread-safe", feature = "resource-limit-async"))]
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+
 #[cfg(feature = "tracing")]
 use tracing::{debug, info};
+
+#[cfg(all(feature = "async-factory", not(feature = "thread-safe")))]
+type AsyncFactory<T> =
+    Box<dyn Fn(Injector) -> Pin<Box<dyn Future<Output = Instance<T>> + 'static>> + 'static>;
+
+#[cfg(all(feature = "async-factory", feature = "thread-safe"))]
+type AsyncFactory<T> = Box<
+    dyn Fn(Injector) -> Pin<Box<dyn Future<Output = Instance<T>> + Send + 'static>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
+/// Behavior when a resource limit is reached.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Policy {
+    /// Return an error immediately when no creation slot is available.
+    Deny,
+    /// Block until a creation slot becomes available.
+    Block,
+}
+
+/// Limits applied to provider factory execution.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Limits {
+    /// Maximum number of concurrent in-flight factory executions for this provider.
+    ///
+    /// `None` disables the limit.
+    pub max_concurrent_creations: Option<usize>,
+    /// Action to take when the limit is reached.
+    pub policy: Policy,
+    /// Optional timeout used by `Policy::Block`.
+    ///
+    /// - In `thread-safe` sync resolve, this bounds `Condvar` wait time.
+    /// - With `resource-limit-async`, async resolve uses `tokio::time::timeout`.
+    pub timeout: Option<Duration>,
+}
+
+impl Limits {
+    pub const fn unlimited() -> Self {
+        Self {
+            max_concurrent_creations: None,
+            policy: Policy::Deny,
+            timeout: None,
+        }
+    }
+
+    pub const fn deny(max_concurrent_creations: usize) -> Self {
+        Self {
+            max_concurrent_creations: Some(max_concurrent_creations),
+            policy: Policy::Deny,
+            timeout: None,
+        }
+    }
+
+    pub const fn block(max_concurrent_creations: usize) -> Self {
+        Self {
+            max_concurrent_creations: Some(max_concurrent_creations),
+            policy: Policy::Block,
+            timeout: None,
+        }
+    }
+
+    /// Applies a timeout to `Policy::Block`.
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Builds block policy with timeout in one call.
+    pub fn block_with_timeout(max_concurrent_creations: usize, timeout: Duration) -> Self {
+        Self::block(max_concurrent_creations).with_timeout(timeout)
+    }
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self::unlimited()
+    }
+}
+
+#[cfg(not(feature = "thread-safe"))]
+#[derive(Debug)]
+pub(crate) struct Limiter {
+    max: usize,
+    policy: Policy,
+    current: std::cell::Cell<usize>,
+    timeout: Option<Duration>,
+}
+
+#[cfg(feature = "thread-safe")]
+#[derive(Debug)]
+pub(crate) struct Limiter {
+    max: usize,
+    policy: Policy,
+    current: std::sync::Mutex<usize>,
+    condvar: std::sync::Condvar,
+    timeout: Option<Duration>,
+    #[cfg(feature = "resource-limit-async")]
+    async_semaphore: Shared<Semaphore>,
+}
+
+#[derive(Debug)]
+pub(crate) enum CreationPermit {
+    Sync {
+        limiter: Shared<Limiter>,
+    },
+    #[cfg(all(feature = "thread-safe", feature = "resource-limit-async"))]
+    Async(OwnedSemaphorePermit),
+}
+
+impl Drop for CreationPermit {
+    fn drop(&mut self) {
+        #[cfg(all(feature = "thread-safe", feature = "resource-limit-async"))]
+        match self {
+            Self::Sync { limiter } => limiter.release(),
+            Self::Async(_permit) => {}
+        }
+
+        #[cfg(not(all(feature = "thread-safe", feature = "resource-limit-async")))]
+        {
+            let Self::Sync { limiter } = self;
+            limiter.release();
+        }
+    }
+}
+
+impl Limiter {
+    fn from_limits(limits: Limits) -> Option<Shared<Self>> {
+        let max = limits.max_concurrent_creations?;
+
+        #[cfg(feature = "thread-safe")]
+        {
+            Some(Shared::new(Self {
+                max,
+                policy: limits.policy,
+                current: std::sync::Mutex::new(0),
+                condvar: std::sync::Condvar::new(),
+                timeout: limits.timeout,
+                #[cfg(feature = "resource-limit-async")]
+                async_semaphore: Shared::new(Semaphore::new(max)),
+            }))
+        }
+
+        #[cfg(not(feature = "thread-safe"))]
+        {
+            Some(Shared::new(Self {
+                max,
+                policy: limits.policy,
+                current: std::cell::Cell::new(0),
+                timeout: limits.timeout,
+            }))
+        }
+    }
+
+    fn try_acquire(limiter: &Shared<Self>, type_name: &str) -> Result<CreationPermit, Error> {
+        #[cfg(feature = "thread-safe")]
+        {
+            if limiter.max == 0 {
+                return Err(Error::resource_limit_exceeded(
+                    type_name,
+                    "max_concurrent_creations must be greater than 0",
+                ));
+            }
+
+            let mut current = limiter.current.lock().unwrap();
+            let deadline = limiter
+                .timeout
+                .map(|timeout| std::time::Instant::now() + timeout);
+            loop {
+                if *current < limiter.max {
+                    *current += 1;
+                    return Ok(CreationPermit::Sync {
+                        limiter: limiter.clone(),
+                    });
+                }
+
+                match limiter.policy {
+                    Policy::Deny => {
+                        return Err(Error::resource_limit_exceeded(
+                            type_name,
+                            format!("max_concurrent_creations={}", limiter.max).as_str(),
+                        ));
+                    }
+                    Policy::Block => {
+                        if let Some(deadline) = deadline {
+                            let now = std::time::Instant::now();
+                            if now >= deadline {
+                                return Err(Error::resource_limit_exceeded(
+                                    type_name,
+                                    format!(
+                                        "max_concurrent_creations={} timeout={:?}",
+                                        limiter.max,
+                                        limiter.timeout.unwrap_or_default()
+                                    )
+                                    .as_str(),
+                                ));
+                            }
+
+                            let remaining = deadline.saturating_duration_since(now);
+                            let (next_guard, wait_result) =
+                                limiter.condvar.wait_timeout(current, remaining).unwrap();
+                            current = next_guard;
+
+                            if wait_result.timed_out() && *current >= limiter.max {
+                                return Err(Error::resource_limit_exceeded(
+                                    type_name,
+                                    format!(
+                                        "max_concurrent_creations={} timeout={:?}",
+                                        limiter.max,
+                                        limiter.timeout.unwrap_or_default()
+                                    )
+                                    .as_str(),
+                                ));
+                            }
+                        } else {
+                            current = limiter.condvar.wait(current).unwrap();
+                        }
+                    }
+                }
+            }
+        }
+
+        #[cfg(not(feature = "thread-safe"))]
+        {
+            if limiter.max == 0 {
+                return Err(Error::resource_limit_exceeded(
+                    type_name,
+                    "max_concurrent_creations must be greater than 0",
+                ));
+            }
+
+            let current = limiter.current.get();
+            if current < limiter.max {
+                limiter.current.set(current + 1);
+                return Ok(CreationPermit::Sync {
+                    limiter: limiter.clone(),
+                });
+            }
+
+            match limiter.policy {
+                Policy::Deny => Err(Error::resource_limit_exceeded(
+                    type_name,
+                    format!("max_concurrent_creations={}", limiter.max).as_str(),
+                )),
+                Policy::Block => Err(Error::resource_limit_exceeded(
+                    type_name,
+                    if limiter.timeout.is_some() {
+                        "policy=Block (with timeout) requires `thread-safe` feature"
+                    } else {
+                        "policy=Block requires `thread-safe` feature"
+                    },
+                )),
+            }
+        }
+    }
+
+    #[cfg(all(feature = "thread-safe", feature = "resource-limit-async"))]
+    async fn try_acquire_async(
+        limiter: &Shared<Self>,
+        type_name: &str,
+    ) -> Result<CreationPermit, Error> {
+        if limiter.max == 0 {
+            return Err(Error::resource_limit_exceeded(
+                type_name,
+                "max_concurrent_creations must be greater than 0",
+            ));
+        }
+
+        match limiter.policy {
+            Policy::Deny => limiter
+                .async_semaphore
+                .clone()
+                .try_acquire_owned()
+                .map(CreationPermit::Async)
+                .map_err(|_| {
+                    Error::resource_limit_exceeded(
+                        type_name,
+                        format!("max_concurrent_creations={}", limiter.max).as_str(),
+                    )
+                }),
+            Policy::Block => {
+                if let Some(timeout) = limiter.timeout {
+                    let acquire = limiter.async_semaphore.clone().acquire_owned();
+                    match tokio::time::timeout(timeout, acquire).await {
+                        Ok(Ok(permit)) => Ok(CreationPermit::Async(permit)),
+                        Ok(Err(_)) => Err(Error::resource_limit_exceeded(
+                            type_name,
+                            "async semaphore closed",
+                        )),
+                        Err(_) => Err(Error::resource_limit_exceeded(
+                            type_name,
+                            format!(
+                                "max_concurrent_creations={} timeout={:?}",
+                                limiter.max, timeout
+                            )
+                            .as_str(),
+                        )),
+                    }
+                } else {
+                    limiter
+                        .async_semaphore
+                        .clone()
+                        .acquire_owned()
+                        .await
+                        .map(CreationPermit::Async)
+                        .map_err(|_| {
+                            Error::resource_limit_exceeded(type_name, "async semaphore closed")
+                        })
+                }
+            }
+        }
+    }
+
+    fn release(&self) {
+        #[cfg(feature = "thread-safe")]
+        {
+            let mut current = self.current.lock().unwrap();
+            if *current > 0 {
+                *current -= 1;
+            }
+
+            if self.policy == Policy::Block {
+                self.condvar.notify_one();
+            }
+        }
+
+        #[cfg(not(feature = "thread-safe"))]
+        {
+            let current = self.current.get();
+            if current > 0 {
+                self.current.set(current - 1);
+            }
+        }
+    }
+}
 
 /// A provider encapsulates the factory logic for creating instances of type `T`.
 ///
@@ -75,7 +421,7 @@ use tracing::{debug, info};
 /// Creating a singleton provider:
 ///
 /// ```
-/// use sadi::{Provider, Shared};
+/// use fluxdi::{Provider, Shared};
 ///
 /// struct Service {
 ///     name: String,
@@ -103,6 +449,15 @@ pub struct Provider<T: ?Sized + 'static> {
     #[allow(clippy::type_complexity)]
     #[cfg(feature = "thread-safe")]
     pub factory: Box<dyn Fn(&Injector) -> Instance<T> + Send + Sync + 'static>,
+
+    /// Optional async factory used by `Injector::try_resolve_async`.
+    #[cfg(feature = "async-factory")]
+    pub async_factory: Option<AsyncFactory<T>>,
+
+    /// Optional resource limits for this provider factory.
+    pub limits: Limits,
+
+    limiter: Option<Shared<Limiter>>,
 }
 
 #[cfg(feature = "debug")]
@@ -128,7 +483,57 @@ impl<T: ?Sized + 'static> std::fmt::Debug for Provider<T> {
             );
         }
 
+        #[cfg(feature = "async-factory")]
+        {
+            ds.field("async_factory", &self.async_factory.is_some());
+        }
+
+        ds.field("limits", &self.limits);
+        ds.field("limiter", &self.limiter.is_some());
+
         ds.finish()
+    }
+}
+
+impl<T: ?Sized + 'static> Provider<T> {
+    /// Applies resource limits to this provider.
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self.limiter = Limiter::from_limits(limits);
+        self
+    }
+
+    pub(crate) fn acquire_creation_permit(
+        &self,
+        type_name: &str,
+    ) -> Result<Option<CreationPermit>, Error> {
+        if let Some(limiter) = &self.limiter {
+            return Limiter::try_acquire(limiter, type_name).map(Some);
+        }
+
+        Ok(None)
+    }
+
+    #[cfg(feature = "async-factory")]
+    pub(crate) async fn acquire_creation_permit_async(
+        &self,
+        type_name: &str,
+    ) -> Result<Option<CreationPermit>, Error> {
+        if let Some(limiter) = &self.limiter {
+            #[cfg(all(feature = "thread-safe", feature = "resource-limit-async"))]
+            {
+                return Limiter::try_acquire_async(limiter, type_name)
+                    .await
+                    .map(Some);
+            }
+
+            #[cfg(not(all(feature = "thread-safe", feature = "resource-limit-async")))]
+            {
+                return Limiter::try_acquire(limiter, type_name).map(Some);
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -151,7 +556,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// # Examples
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     ///
     /// struct Config {
     ///     debug: bool,
@@ -180,6 +585,10 @@ impl<T: ?Sized + 'static> Provider<T> {
 
                 Instance::new(factory(injector))
             }),
+            #[cfg(feature = "async-factory")]
+            async_factory: None,
+            limits: Limits::default(),
+            limiter: None,
         }
     }
 
@@ -205,7 +614,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// # Examples
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     ///
     /// struct RequestHandler {
     ///     id: u64,
@@ -239,6 +648,10 @@ impl<T: ?Sized + 'static> Provider<T> {
 
                 Instance::new(factory(injector))
             }),
+            #[cfg(feature = "async-factory")]
+            async_factory: None,
+            limits: Limits::default(),
+            limiter: None,
         }
     }
 
@@ -265,7 +678,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// # Examples
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     ///
     /// struct AppConfig {
     ///     version: String,
@@ -296,6 +709,109 @@ impl<T: ?Sized + 'static> Provider<T> {
 
                 Instance::new(factory(injector))
             }),
+            #[cfg(feature = "async-factory")]
+            async_factory: None,
+            limits: Limits::default(),
+            limiter: None,
+        }
+    }
+
+    /// Creates a singleton provider with resource limits.
+    pub fn singleton_with_limits<F>(limits: Limits, factory: F) -> Provider<T>
+    where
+        F: Fn(&Injector) -> Shared<T> + 'static,
+    {
+        Self::singleton(factory).with_limits(limits)
+    }
+
+    /// Creates a transient provider with resource limits.
+    pub fn transient_with_limits<F>(limits: Limits, factory: F) -> Provider<T>
+    where
+        F: Fn(&Injector) -> Shared<T> + 'static,
+    {
+        Self::transient(factory).with_limits(limits)
+    }
+
+    /// Creates a root provider with resource limits.
+    pub fn root_with_limits<F>(limits: Limits, factory: F) -> Provider<T>
+    where
+        F: Fn(&Injector) -> Shared<T> + 'static,
+    {
+        Self::root(factory).with_limits(limits)
+    }
+
+    /// Creates a singleton provider whose factory resolves asynchronously.
+    #[cfg(feature = "async-factory")]
+    pub fn singleton_async<F, Fut>(factory: F) -> Provider<T>
+    where
+        F: Fn(Injector) -> Fut + 'static,
+        Fut: Future<Output = Shared<T>> + 'static,
+    {
+        Provider::<T> {
+            scope: Scope::Module,
+            factory: Box::new(|_| {
+                panic!(
+                    "async provider cannot be used with try_resolve/resolve; use try_resolve_async/resolve_async"
+                )
+            }),
+            async_factory: Some(Box::new(move |injector| {
+                Box::pin({
+                    let future = factory(injector);
+                    async move { Instance::new(future.await) }
+                })
+            })),
+            limits: Limits::default(),
+            limiter: None,
+        }
+    }
+
+    /// Creates a transient provider whose factory resolves asynchronously.
+    #[cfg(feature = "async-factory")]
+    pub fn transient_async<F, Fut>(factory: F) -> Provider<T>
+    where
+        F: Fn(Injector) -> Fut + 'static,
+        Fut: Future<Output = Shared<T>> + 'static,
+    {
+        Provider::<T> {
+            scope: Scope::Transient,
+            factory: Box::new(|_| {
+                panic!(
+                    "async provider cannot be used with try_resolve/resolve; use try_resolve_async/resolve_async"
+                )
+            }),
+            async_factory: Some(Box::new(move |injector| {
+                Box::pin({
+                    let future = factory(injector);
+                    async move { Instance::new(future.await) }
+                })
+            })),
+            limits: Limits::default(),
+            limiter: None,
+        }
+    }
+
+    /// Creates a root-scoped provider whose factory resolves asynchronously.
+    #[cfg(feature = "async-factory")]
+    pub fn root_async<F, Fut>(factory: F) -> Provider<T>
+    where
+        F: Fn(Injector) -> Fut + 'static,
+        Fut: Future<Output = Shared<T>> + 'static,
+    {
+        Provider::<T> {
+            scope: Scope::Root,
+            factory: Box::new(|_| {
+                panic!(
+                    "async provider cannot be used with try_resolve/resolve; use try_resolve_async/resolve_async"
+                )
+            }),
+            async_factory: Some(Box::new(move |injector| {
+                Box::pin({
+                    let future = factory(injector);
+                    async move { Instance::new(future.await) }
+                })
+            })),
+            limits: Limits::default(),
+            limiter: None,
         }
     }
 }
@@ -327,7 +843,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// # Examples
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     ///
     /// #[derive(Debug)]
     /// struct Database {
@@ -344,7 +860,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// With trait objects:
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     /// use std::sync::Arc;
     ///
     /// trait Cache: Send + Sync {}
@@ -370,6 +886,10 @@ impl<T: ?Sized + 'static> Provider<T> {
 
                 Instance::new(factory(injector))
             }),
+            #[cfg(feature = "async-factory")]
+            async_factory: None,
+            limits: Limits::default(),
+            limiter: None,
         }
     }
 
@@ -403,7 +923,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// # Examples
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     /// use std::sync::atomic::{AtomicU64, Ordering};
     ///
     /// static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -433,6 +953,10 @@ impl<T: ?Sized + 'static> Provider<T> {
 
                 Instance::new(factory(injector))
             }),
+            #[cfg(feature = "async-factory")]
+            async_factory: None,
+            limits: Limits::default(),
+            limiter: None,
         }
     }
 
@@ -468,7 +992,7 @@ impl<T: ?Sized + 'static> Provider<T> {
     /// # Examples
     ///
     /// ```
-    /// use sadi::{Provider, Shared};
+    /// use fluxdi::{Provider, Shared};
     /// use std::sync::RwLock;
     ///
     /// struct GlobalConfig {
@@ -496,6 +1020,109 @@ impl<T: ?Sized + 'static> Provider<T> {
 
                 Instance::new(factory(injector))
             }),
+            #[cfg(feature = "async-factory")]
+            async_factory: None,
+            limits: Limits::default(),
+            limiter: None,
+        }
+    }
+
+    /// Creates a singleton provider with resource limits.
+    pub fn singleton_with_limits<F>(limits: Limits, factory: F) -> Provider<T>
+    where
+        F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
+    {
+        Self::singleton(factory).with_limits(limits)
+    }
+
+    /// Creates a transient provider with resource limits.
+    pub fn transient_with_limits<F>(limits: Limits, factory: F) -> Provider<T>
+    where
+        F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
+    {
+        Self::transient(factory).with_limits(limits)
+    }
+
+    /// Creates a root provider with resource limits.
+    pub fn root_with_limits<F>(limits: Limits, factory: F) -> Provider<T>
+    where
+        F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
+    {
+        Self::root(factory).with_limits(limits)
+    }
+
+    /// Creates a singleton provider whose factory resolves asynchronously.
+    #[cfg(feature = "async-factory")]
+    pub fn singleton_async<F, Fut>(factory: F) -> Provider<T>
+    where
+        F: Fn(Injector) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Shared<T>> + Send + 'static,
+    {
+        Provider::<T> {
+            scope: Scope::Module,
+            factory: Box::new(|_| {
+                panic!(
+                    "async provider cannot be used with try_resolve/resolve; use try_resolve_async/resolve_async"
+                )
+            }),
+            async_factory: Some(Box::new(move |injector| {
+                Box::pin({
+                    let future = factory(injector);
+                    async move { Instance::new(future.await) }
+                })
+            })),
+            limits: Limits::default(),
+            limiter: None,
+        }
+    }
+
+    /// Creates a transient provider whose factory resolves asynchronously.
+    #[cfg(feature = "async-factory")]
+    pub fn transient_async<F, Fut>(factory: F) -> Provider<T>
+    where
+        F: Fn(Injector) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Shared<T>> + Send + 'static,
+    {
+        Provider::<T> {
+            scope: Scope::Transient,
+            factory: Box::new(|_| {
+                panic!(
+                    "async provider cannot be used with try_resolve/resolve; use try_resolve_async/resolve_async"
+                )
+            }),
+            async_factory: Some(Box::new(move |injector| {
+                Box::pin({
+                    let future = factory(injector);
+                    async move { Instance::new(future.await) }
+                })
+            })),
+            limits: Limits::default(),
+            limiter: None,
+        }
+    }
+
+    /// Creates a root-scoped provider whose factory resolves asynchronously.
+    #[cfg(feature = "async-factory")]
+    pub fn root_async<F, Fut>(factory: F) -> Provider<T>
+    where
+        F: Fn(Injector) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Shared<T>> + Send + 'static,
+    {
+        Provider::<T> {
+            scope: Scope::Root,
+            factory: Box::new(|_| {
+                panic!(
+                    "async provider cannot be used with try_resolve/resolve; use try_resolve_async/resolve_async"
+                )
+            }),
+            async_factory: Some(Box::new(move |injector| {
+                Box::pin({
+                    let future = factory(injector);
+                    async move { Instance::new(future.await) }
+                })
+            })),
+            limits: Limits::default(),
+            limiter: None,
         }
     }
 }

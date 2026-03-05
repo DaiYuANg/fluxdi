@@ -46,7 +46,7 @@ jobs:
     strategy:
       matrix:
         crate:
-          - sadi
+          - fluxdi
     steps:
       - uses: actions/checkout@v5
       - name: Install stable
@@ -60,6 +60,17 @@ jobs:
         run: cargo doc --package ${{ matrix.crate }} --all-features --no-deps
     env:
       RUSTDOCFLAGS: "-A rustdoc::private-doc-tests"
+
+  mdbook:
+    name: Build mdBook
+    needs: lint_and_fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install mdBook
+        run: cargo install mdbook --locked
+      - name: Build docs book
+        run: mdbook build docs
 
   deny:
     name: Deny verify
@@ -81,6 +92,7 @@ jobs:
     needs:
       - lint_and_fmt
       - docs
+      - mdbook
       - deny
     strategy:
       matrix:
@@ -144,3 +156,4 @@ jobs:
             cargo release ${{ github.event.inputs.level }} --execute --no-confirm
           fi
           
+

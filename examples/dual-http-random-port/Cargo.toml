@@ -1,0 +1,15 @@
+[package]
+name = "dual-http-random-port-example"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+authors.workspace = true
+
+[dependencies]
+axum = "0.8"
+rand = "0.8"
+fluxdi = { path = "../../fluxdi", features = ["thread-safe"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal"] }
+

@@ -1,6 +1,6 @@
 ---
 name: 🐛 Bug Report
-about: Create a report to help us improve SaDi
+about: Create a report to help us improve FluxDI
 title: '[Bug] '
 labels: ['bug', 'triage']
 assignees: ''
@@ -14,7 +14,7 @@ assignees: ''
 
 Steps to reproduce the behavior:
 
-1. Set up SaDi container with...
+1. Set up FluxDI container with...
 2. Register services with...
 3. Call method...
 4. See error
@@ -22,10 +22,10 @@ Steps to reproduce the behavior:
 **Minimal reproduction code:**
 
 ```rust
-use sadi::SaDi;
+use fluxdi::FluxDI;
 
 // Please provide a minimal, complete example that reproduces the issue
-let container = SaDi::new()
+let container = FluxDI::new()
     .factory(|_| MyService::new());
 
 // What you did that caused the issue
@@ -48,7 +48,7 @@ Paste the full error message here
 ## 🖥️ Environment
 
 - **Rust version:** `rustc --version`
-- **SaDi version:** (from Cargo.toml)
+- **FluxDI version:** (from Cargo.toml)
 - **Operating System:** (e.g., Ubuntu 20.04, macOS 13, Windows 11)
 - **Features enabled:** (e.g., `tracing`)
 
@@ -69,7 +69,7 @@ ServiceA -> ServiceB -> ServiceC
 
 ```toml
 [dependencies]
-sadi = { version = "x.y.z", features = ["tracing"] }
+fluxdi = { version = "x.y.z", features = ["tracing"] }
 # ... other relevant dependencies
 ```
 
@@ -88,3 +88,4 @@ sadi = { version = "x.y.z", features = ["tracing"] }
 - [ ] I have included the full error message
 - [ ] I have specified my environment details
 - [ ] I have searched existing issues to avoid duplicates
+

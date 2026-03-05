@@ -1,0 +1,13 @@
+[package]
+name = "module-mixed-sync-async-example"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+authors.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+fluxdi = { path = "../../fluxdi", features = ["thread-safe", "async-factory"] }
+

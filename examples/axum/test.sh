@@ -301,7 +301,7 @@ main() {
     echo -e "${YELLOW}"
     cat << "EOF"
     ╔═══════════════════════════════════════╗
-    ║   SADI Axum API Test Suite            ║
+    ║   FLUXDI Axum API Test Suite            ║
     ║   Testing Dependency Injection        ║
     ║   with RESTful Endpoints              ║
     ╚═══════════════════════════════════════╝
@@ -327,3 +327,4 @@ EOF
 
 # Run main function
 main
+

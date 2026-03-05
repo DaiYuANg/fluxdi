@@ -1,0 +1,51 @@
+[package]
+name = "fluxdi"
+keywords = ["dependency-injection", "di", "fluxdi", "semi-automatic", "axum-di"]
+description = "FluxDI - Semi-Automatic Dependency Injector"
+readme = "README.md"
+
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+authors.workspace = true
+
+[dependencies]
+tracing = { version = "0.1.41", optional = true }
+axum = { version = "0.8", optional = true }
+actix-web = { version = "4.11.0", optional = true }
+opentelemetry = { version = "0.29.1", optional = true }
+tracing-opentelemetry = { version = "0.30.0", optional = true }
+tracing-subscriber = { version = "0.3.19", optional = true }
+dashmap = { version = "6.1.0", optional = true }
+tokio = { version = "1.43.0", features = ["sync", "time", "rt", "rt-multi-thread"], optional = true }
+
+[features]
+default = ["debug"]
+
+thread-safe = []
+lock-free = ["thread-safe", "dep:dashmap"]
+tracing = ["dep:tracing"]
+axum = ["thread-safe", "dep:axum"]
+actix = ["thread-safe", "dep:actix-web"]
+async-factory = []
+resource-limit-async = ["thread-safe", "async-factory", "dep:tokio"]
+metrics = []
+prometheus = ["metrics"]
+opentelemetry = [
+    "tracing",
+    "dep:opentelemetry",
+    "dep:tracing-opentelemetry",
+    "dep:tracing-subscriber",
+]
+debug = []
+
+[dev-dependencies]
+futures = "0.3.31"
+tracing-subscriber = "0.3.19"
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "injector_baseline"
+harness = false

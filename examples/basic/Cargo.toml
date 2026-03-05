@@ -8,4 +8,5 @@ license-file.workspace = true
 authors.workspace = true
 
 [dependencies]
-sadi = { path = "../../sadi" }
+fluxdi = { path = "../../fluxdi" }
+

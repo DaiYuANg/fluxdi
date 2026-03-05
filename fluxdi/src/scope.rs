@@ -17,7 +17,7 @@ use tracing::debug;
 /// # Examples
 ///
 /// ```no_run
-/// use sadi::Scope;
+/// use fluxdi::Scope;
 ///
 /// let root_scope = Scope::Root;
 /// assert!(root_scope.is_singleton());
@@ -58,7 +58,7 @@ impl Scope {
     /// # Examples
     ///
     /// ```
-    /// use sadi::Scope;
+    /// use fluxdi::Scope;
     ///
     /// assert!(Scope::Root.is_singleton());
     /// assert!(Scope::Module.is_singleton());

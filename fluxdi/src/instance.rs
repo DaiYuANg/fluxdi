@@ -27,7 +27,7 @@
 //! Creating and using an instance:
 //!
 //! ```
-//! use sadi::{Instance, Shared};
+//! use fluxdi::{Instance, Shared};
 //!
 //! struct Config {
 //!     debug: bool,
@@ -48,7 +48,7 @@
 //! With trait objects:
 //!
 //! ```
-//! use sadi::{Instance, Shared};
+//! use fluxdi::{Instance, Shared};
 //!
 //! trait Logger {
 //!     fn log(&self, message: &str);
@@ -95,7 +95,7 @@ use crate::Shared;
 /// Basic usage with a concrete type:
 ///
 /// ```
-/// use sadi::{Instance, Shared};
+/// use fluxdi::{Instance, Shared};
 ///
 /// #[derive(Debug, PartialEq)]
 /// struct User {
@@ -116,7 +116,7 @@ use crate::Shared;
 /// Multiple instances sharing the same value:
 ///
 /// ```
-/// use sadi::{Instance, Shared};
+/// use fluxdi::{Instance, Shared};
 ///
 /// let shared = Shared::new(vec![1, 2, 3]);
 /// let instance1 = Instance::new(shared.clone());
@@ -148,7 +148,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Creating an instance with a concrete type:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// struct Database {
     ///     url: String,
@@ -164,7 +164,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Creating an instance with a trait object:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// trait Repository {}
     /// struct UserRepository;
@@ -197,7 +197,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Accessing fields:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// struct Config {
     ///     debug: bool,
@@ -216,7 +216,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Calling methods:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// struct Calculator {
     ///     base: i32,
@@ -235,7 +235,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Using with trait objects:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// trait Greeter {
     ///     fn greet(&self) -> String;
@@ -288,7 +288,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Storing multiple references:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// struct Config {
     ///     max_connections: u32,
@@ -307,7 +307,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// Passing to multiple services:
     ///
     /// ```
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     ///
     /// struct Database {
     ///     url: String,
@@ -345,7 +345,7 @@ impl<T: ?Sized + 'static> Instance<T> {
     /// ```no_run
     /// # #[cfg(feature = "thread-safe")]
     /// # {
-    /// use sadi::{Instance, Shared};
+    /// use fluxdi::{Instance, Shared};
     /// use std::thread;
     ///
     /// struct Counter {

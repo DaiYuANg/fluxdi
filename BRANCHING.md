@@ -1,4 +1,4 @@
-# Git Workflow for SaDi
+# Git Workflow for FluxDI
 
 ## 🎯 Goals
 
@@ -6,7 +6,7 @@
 - Keep release process reproducible and automated using `cargo-release`
 - Maintain `main` branch always in releasable state
 - Ensure high code quality through PR reviews and automated checks
-- Align with SaDi's contribution guidelines and issue management
+- Align with FluxDI's contribution guidelines and issue management
 
 ## 🌳 Branch Strategy
 
@@ -101,7 +101,7 @@ Tagging / versioning (cargo-release)
 - Summary of implementation changes
 - Test coverage for new functionality
 - Documentation updates (inline docs, README if needed)
-- Adherence to SaDi's API design principles
+- Adherence to FluxDI's API design principles
 
 ### Issue-Driven Development
 
@@ -118,7 +118,7 @@ All PRs must pass:
    - Type safety and zero-cost abstractions
    - API ergonomics and consistency
    - Test coverage and documentation
-   - Alignment with SaDi's design principles
+   - Alignment with FluxDI's design principles
 3. **No direct commits to main** except for releases
 
 Workspaces
@@ -158,7 +158,7 @@ Pre-release and crates.io
 ### Review Process
 1. **Automated checks**: CI runs tests, clippy, formatting
 2. **Human review**: Focus on:
-   - Code quality and SaDi design principles
+   - Code quality and FluxDI design principles
    - Test coverage and documentation
    - API consistency and type safety
    - Performance implications
@@ -224,4 +224,5 @@ Reference issues and PRs.
 
 ---
 
-**Note**: This workflow emphasizes quality, type safety, and thorough testing in line with SaDi's mission to provide a reliable, zero-cost dependency injection solution for Rust.
+**Note**: This workflow emphasizes quality, type safety, and thorough testing in line with FluxDI's mission to provide a reliable, zero-cost dependency injection solution for Rust.
+

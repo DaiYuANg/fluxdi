@@ -19,9 +19,9 @@
 //! # Examples
 //!
 //! ```
-//! use sadi::application::Application;
-//! use sadi::module::Module;
-//! use sadi::injector::Injector;
+//! use fluxdi::application::Application;
+//! use fluxdi::module::Module;
+//! use fluxdi::injector::Injector;
 //!
 //! struct AppModule;
 //!
@@ -32,18 +32,29 @@
 //! }
 //!
 //! let mut app = Application::new(AppModule);
-//! app.bootstrap();
+//! app.bootstrap_sync().unwrap();
 //!
 //! let injector = app.injector();
 //! // Use injector to resolve dependencies
 //! ```
 
+use crate::Error;
 use crate::injector::Injector;
 use crate::module::Module;
 use crate::runtime::Shared;
 
 #[cfg(feature = "tracing")]
 use tracing::{debug, info};
+
+#[cfg(not(feature = "thread-safe"))]
+type ModuleObject = Box<dyn Module>;
+#[cfg(feature = "thread-safe")]
+type ModuleObject = Box<dyn Module>;
+
+struct LoadedModule {
+    module: ModuleObject,
+    injector: Shared<Injector>,
+}
 
 /// The main application container for dependency injection.
 ///
@@ -60,15 +71,17 @@ use tracing::{debug, info};
 /// # Lifecycle
 ///
 /// 1. **Creation**: Create an application with a root module using [`new()`](Application::new)
-/// 2. **Bootstrap**: Call [`bootstrap()`](Application::bootstrap) to load all modules
+/// 2. **Bootstrap**: Call [`bootstrap_sync()`](Application::bootstrap_sync) for sync-only modules
+///    or [`bootstrap()`](Application::bootstrap) for async-capable lifecycle hooks
 /// 3. **Usage**: Access the injector via [`injector()`](Application::injector) to resolve dependencies
+/// 4. **Shutdown (optional)**: Call [`shutdown()`](Application::shutdown) to run `on_stop` hooks
 ///
 /// # Examples
 ///
 /// ```
-/// use sadi::application::Application;
-/// use sadi::module::Module;
-/// use sadi::injector::Injector;
+/// use fluxdi::application::Application;
+/// use fluxdi::module::Module;
+/// use fluxdi::injector::Injector;
 ///
 /// struct MyAppModule;
 ///
@@ -81,18 +94,16 @@ use tracing::{debug, info};
 /// let mut app = Application::new(MyAppModule);
 /// assert!(!app.is_bootstrapped());
 ///
-/// app.bootstrap();
+/// app.bootstrap_sync().unwrap();
 /// assert!(app.is_bootstrapped());
 ///
 /// let injector = app.injector();
 /// // Use injector to get services
 /// ```
 pub struct Application {
-    #[cfg(not(feature = "thread-safe"))]
-    root: Option<Box<dyn Module>>,
-    #[cfg(feature = "thread-safe")]
-    root: Option<Box<dyn Module + Send + Sync>>,
+    root: Option<ModuleObject>,
     injector: Shared<Injector>,
+    started_modules: Vec<LoadedModule>,
 }
 
 #[cfg(feature = "debug")]
@@ -101,6 +112,7 @@ impl std::fmt::Debug for Application {
         f.debug_struct("Application")
             .field("injector", &"...")
             .field("root", &"<dyn Module>")
+            .field("started_modules", &self.started_modules.len())
             .finish()
     }
 }
@@ -109,6 +121,7 @@ impl Application {
     /// Creates a new application with the given root module.
     ///
     /// The application is created in an un-bootstrapped state. You must call
+    /// either [`bootstrap_sync()`](Application::bootstrap_sync) or
     /// [`bootstrap()`](Application::bootstrap) to load the module and its dependencies.
     ///
     /// # Parameters
@@ -122,9 +135,9 @@ impl Application {
     /// # Examples
     ///
     /// ```
-    /// use sadi::application::Application;
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::application::Application;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct RootModule;
     ///
@@ -142,6 +155,7 @@ impl Application {
         Self {
             root: Some(Box::new(root)),
             injector: Shared::new(Injector::root()),
+            started_modules: Vec::new(),
         }
     }
 
@@ -159,9 +173,9 @@ impl Application {
     /// # Examples
     ///
     /// ```
-    /// use sadi::application::Application;
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::application::Application;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct AppModule;
     ///
@@ -172,16 +186,16 @@ impl Application {
     /// }
     ///
     /// let mut app = Application::new(AppModule);
-    /// app.bootstrap();
+    /// app.bootstrap_sync().unwrap();
     /// assert!(app.is_bootstrapped());
     /// ```
     ///
     /// # Panics Example
     ///
     /// ```should_panic
-    /// use sadi::application::Application;
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::application::Application;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct AppModule;
     /// impl Module for AppModule {
@@ -189,19 +203,79 @@ impl Application {
     /// }
     ///
     /// let mut app = Application::new(AppModule);
-    /// app.bootstrap();
-    /// app.bootstrap(); // Panics: Application already bootstrapped
+    /// app.bootstrap_sync().unwrap();
+    /// app.bootstrap_sync().unwrap(); // Panics: Application already bootstrapped
     /// ```
-    pub fn bootstrap(&mut self) {
+    pub fn bootstrap_sync(&mut self) -> Result<(), Error> {
         let root = self.root.take().expect("Application already bootstrapped");
 
         #[cfg(feature = "tracing")]
         info!("Starting application bootstrap process");
 
-        Self::load_module(self.injector.clone(), root);
+        Self::load_module(self.injector.clone(), root)?;
 
         #[cfg(feature = "tracing")]
         info!("Application bootstrap completed successfully");
+        Ok(())
+    }
+
+    /// Unified bootstrap that supports module async providers and lifecycle hooks.
+    ///
+    /// This executes:
+    /// 1. `configure()` for each module (imports first)
+    /// 2. `on_start()` for each module
+    pub async fn bootstrap(&mut self) -> Result<(), Error> {
+        let root = self.root.take().expect("Application already bootstrapped");
+
+        #[cfg(feature = "tracing")]
+        info!("Starting async application bootstrap process");
+
+        self.started_modules = Self::load_module_async(self.injector.clone(), root).await?;
+
+        #[cfg(feature = "tracing")]
+        info!("Async application bootstrap completed successfully");
+        Ok(())
+    }
+
+    /// Backward-compatible alias for the old async bootstrap name.
+    pub async fn bootstrap_async(&mut self) -> Result<(), Error> {
+        self.bootstrap().await
+    }
+
+    /// Executes module `on_stop()` hooks in reverse startup order.
+    pub async fn shutdown(&mut self) -> Result<(), Error> {
+        #[cfg(feature = "tracing")]
+        info!("Starting async application shutdown process");
+
+        while let Some(loaded) = self.started_modules.pop() {
+            let module_name = std::any::type_name_of_val(&*loaded.module);
+            loaded
+                .module
+                .on_stop(loaded.injector.clone())
+                .await
+                .map_err(|err| {
+                    Error::module_lifecycle_failed(module_name, "on_stop", &err.to_string())
+                })?;
+        }
+
+        #[cfg(feature = "tracing")]
+        info!("Async application shutdown completed successfully");
+        Ok(())
+    }
+
+    /// Backward-compatible alias for the old async shutdown name.
+    pub async fn shutdown_async(&mut self) -> Result<(), Error> {
+        self.shutdown().await
+    }
+
+    /// Backward-compatible alias for startup.
+    pub async fn start(&mut self) -> Result<(), Error> {
+        self.bootstrap().await
+    }
+
+    /// Backward-compatible alias for shutdown.
+    pub async fn stop(&mut self) -> Result<(), Error> {
+        self.shutdown().await
     }
 
     /// Returns a shared reference to the root injector.
@@ -217,9 +291,9 @@ impl Application {
     /// # Examples
     ///
     /// ```
-    /// use sadi::application::Application;
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::application::Application;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct AppModule;
     /// impl Module for AppModule {
@@ -227,7 +301,7 @@ impl Application {
     /// }
     ///
     /// let mut app = Application::new(AppModule);
-    /// app.bootstrap();
+    /// app.bootstrap_sync().unwrap();
     ///
     /// let injector = app.injector();
     /// let another_ref = app.injector();
@@ -251,7 +325,8 @@ impl Application {
 
     /// Checks whether the application has been bootstrapped.
     ///
-    /// Returns `true` if [`bootstrap()`](Application::bootstrap) has been called,
+    /// Returns `true` if bootstrap has been called through either
+    /// [`bootstrap_sync()`](Application::bootstrap_sync) or [`bootstrap()`](Application::bootstrap),
     /// `false` otherwise.
     ///
     /// # Returns
@@ -262,9 +337,9 @@ impl Application {
     /// # Examples
     ///
     /// ```
-    /// use sadi::application::Application;
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::application::Application;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct AppModule;
     /// impl Module for AppModule {
@@ -274,7 +349,7 @@ impl Application {
     /// let mut app = Application::new(AppModule);
     /// assert!(!app.is_bootstrapped());
     ///
-    /// app.bootstrap();
+    /// app.bootstrap_sync().unwrap();
     /// assert!(app.is_bootstrapped());
     /// ```
     pub fn is_bootstrapped(&self) -> bool {
@@ -296,7 +371,7 @@ impl Application {
     ///
     /// - `parent`: The parent injector to create a child from
     /// - `module`: The module to load
-    fn load_module(parent: Shared<Injector>, module: Box<dyn Module>) {
+    fn load_module(parent: Shared<Injector>, module: ModuleObject) -> Result<(), Error> {
         #[cfg(feature = "tracing")]
         debug!("Loading module into injector hierarchy");
 
@@ -316,22 +391,96 @@ impl Application {
             #[cfg(feature = "tracing")]
             debug!("Loading import {}", index + 1);
 
-            Self::load_module(module_injector.clone(), import);
+            Self::load_module(module_injector.clone(), import)?;
         }
 
         #[cfg(feature = "tracing")]
         debug!("Registering module providers");
 
-        module.providers(&module_injector);
+        let module_name = std::any::type_name_of_val(&*module);
+        module.configure(&module_injector).map_err(|err| {
+            Error::module_lifecycle_failed(module_name, "configure", &err.to_string())
+        })?;
 
         #[cfg(feature = "tracing")]
         debug!("Module loaded successfully");
+        Ok(())
+    }
+
+    async fn load_module_async(
+        parent: Shared<Injector>,
+        module: ModuleObject,
+    ) -> Result<Vec<LoadedModule>, Error> {
+        enum Frame {
+            Enter {
+                parent: Shared<Injector>,
+                module: ModuleObject,
+            },
+            Exit {
+                module_injector: Shared<Injector>,
+                module: ModuleObject,
+            },
+        }
+
+        let mut stack = vec![Frame::Enter { parent, module }];
+        let mut loaded = Vec::new();
+
+        while let Some(frame) = stack.pop() {
+            match frame {
+                Frame::Enter { parent, module } => {
+                    let module_injector = Shared::new(Injector::child(parent));
+                    let imports = module.imports();
+
+                    stack.push(Frame::Exit {
+                        module_injector: module_injector.clone(),
+                        module,
+                    });
+
+                    for import in imports.into_iter().rev() {
+                        stack.push(Frame::Enter {
+                            parent: module_injector.clone(),
+                            module: import,
+                        });
+                    }
+                }
+                Frame::Exit {
+                    module_injector,
+                    module,
+                } => {
+                    let module_name = std::any::type_name_of_val(&*module);
+                    module.configure(&module_injector).map_err(|err| {
+                        Error::module_lifecycle_failed(module_name, "configure", &err.to_string())
+                    })?;
+
+                    module
+                        .on_start(module_injector.clone())
+                        .await
+                        .map_err(|err| {
+                            Error::module_lifecycle_failed(
+                                module_name,
+                                "on_start",
+                                &err.to_string(),
+                            )
+                        })?;
+
+                    loaded.push(LoadedModule {
+                        module,
+                        injector: module_injector,
+                    });
+                }
+            }
+        }
+
+        Ok(loaded)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::module::ModuleLifecycleFuture;
+    use crate::{Error, ErrorKind};
+    use futures::executor::block_on;
 
     #[cfg(not(feature = "thread-safe"))]
     use std::cell::RefCell;
@@ -419,6 +568,87 @@ mod tests {
         }
     }
 
+    #[cfg(not(feature = "thread-safe"))]
+    type EventLog = Rc<RefCell<Vec<String>>>;
+    #[cfg(feature = "thread-safe")]
+    type EventLog = Arc<Mutex<Vec<String>>>;
+
+    #[cfg(not(feature = "thread-safe"))]
+    fn push_event(log: &EventLog, event: String) {
+        log.borrow_mut().push(event);
+    }
+
+    #[cfg(feature = "thread-safe")]
+    fn push_event(log: &EventLog, event: String) {
+        log.lock().unwrap().push(event);
+    }
+
+    #[cfg(not(feature = "thread-safe"))]
+    fn event_snapshot(log: &EventLog) -> Vec<String> {
+        log.borrow().clone()
+    }
+
+    #[cfg(feature = "thread-safe")]
+    fn event_snapshot(log: &EventLog) -> Vec<String> {
+        log.lock().unwrap().clone()
+    }
+
+    struct LifecycleModule {
+        name: &'static str,
+        log: EventLog,
+        import_child: bool,
+    }
+
+    impl Module for LifecycleModule {
+        fn imports(&self) -> Vec<Box<dyn Module>> {
+            if !self.import_child {
+                return vec![];
+            }
+
+            vec![Box::new(LifecycleModule {
+                name: "import",
+                log: self.log.clone(),
+                import_child: false,
+            })]
+        }
+
+        fn providers(&self, _injector: &Injector) {
+            push_event(&self.log, format!("providers:{}", self.name));
+        }
+
+        fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+            let log = self.log.clone();
+            let name = self.name.to_string();
+            Box::pin(async move {
+                push_event(&log, format!("on_start:{}", name));
+                Ok(())
+            })
+        }
+
+        fn on_stop(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+            let log = self.log.clone();
+            let name = self.name.to_string();
+            Box::pin(async move {
+                push_event(&log, format!("on_stop:{}", name));
+                Ok(())
+            })
+        }
+    }
+
+    struct FailingLifecycleModule;
+
+    impl Module for FailingLifecycleModule {
+        fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+            Box::pin(async {
+                Err(Error::module_lifecycle_failed(
+                    "FailingLifecycleModule",
+                    "on_start",
+                    "intentional test failure",
+                ))
+            })
+        }
+    }
+
     #[test]
     fn test_new_creates_unbootstrapped_application() {
         let app = Application::new(EmptyModule);
@@ -433,7 +663,7 @@ mod tests {
         let mut app = Application::new(EmptyModule);
         assert!(!app.is_bootstrapped());
 
-        app.bootstrap();
+        app.bootstrap_sync().unwrap();
         assert!(
             app.is_bootstrapped(),
             "Application should be bootstrapped after bootstrap()"
@@ -444,14 +674,14 @@ mod tests {
     #[should_panic(expected = "Application already bootstrapped")]
     fn test_bootstrap_twice_panics() {
         let mut app = Application::new(EmptyModule);
-        app.bootstrap();
-        app.bootstrap(); // Should panic
+        app.bootstrap_sync().unwrap();
+        app.bootstrap_sync().unwrap(); // Should panic
     }
 
     #[test]
     fn test_injector_returns_shared_reference() {
         let mut app = Application::new(EmptyModule);
-        app.bootstrap();
+        app.bootstrap_sync().unwrap();
 
         let injector1 = app.injector();
         let _injector2 = app.injector();
@@ -482,7 +712,7 @@ mod tests {
         #[cfg(feature = "thread-safe")]
         assert_eq!(*counter.lock().unwrap(), 0);
 
-        app.bootstrap();
+        app.bootstrap_sync().unwrap();
 
         #[cfg(not(feature = "thread-safe"))]
         assert_eq!(
@@ -510,13 +740,88 @@ mod tests {
         };
 
         let mut app = Application::new(module);
-        app.bootstrap();
+        app.bootstrap_sync().unwrap();
 
         // 2 imports + 1 root module = 3 calls
         #[cfg(not(feature = "thread-safe"))]
         assert_eq!(*counter.borrow(), 3, "All modules should be loaded");
         #[cfg(feature = "thread-safe")]
         assert_eq!(*counter.lock().unwrap(), 3, "All modules should be loaded");
+    }
+
+    #[test]
+    fn test_bootstrap_async_runs_lifecycle_hooks_and_shutdown_reverse_order() {
+        #[cfg(not(feature = "thread-safe"))]
+        let log: EventLog = Rc::new(RefCell::new(Vec::new()));
+        #[cfg(feature = "thread-safe")]
+        let log: EventLog = Arc::new(Mutex::new(Vec::new()));
+
+        let root = LifecycleModule {
+            name: "root",
+            log: log.clone(),
+            import_child: true,
+        };
+
+        let mut app = Application::new(root);
+        block_on(app.bootstrap_async()).unwrap();
+
+        assert_eq!(
+            event_snapshot(&log),
+            vec![
+                "providers:import".to_string(),
+                "on_start:import".to_string(),
+                "providers:root".to_string(),
+                "on_start:root".to_string(),
+            ]
+        );
+
+        block_on(app.shutdown_async()).unwrap();
+        assert_eq!(
+            event_snapshot(&log),
+            vec![
+                "providers:import".to_string(),
+                "on_start:import".to_string(),
+                "providers:root".to_string(),
+                "on_start:root".to_string(),
+                "on_stop:root".to_string(),
+                "on_stop:import".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_bootstrap_async_propagates_lifecycle_errors() {
+        let mut app = Application::new(FailingLifecycleModule);
+        let error = block_on(app.bootstrap_async()).unwrap_err();
+        assert_eq!(error.kind, ErrorKind::ModuleLifecycleFailed);
+        assert!(error.message.contains("on_start"));
+    }
+
+    #[test]
+    fn test_start_stop_unified_api() {
+        #[cfg(not(feature = "thread-safe"))]
+        let log: EventLog = Rc::new(RefCell::new(Vec::new()));
+        #[cfg(feature = "thread-safe")]
+        let log: EventLog = Arc::new(Mutex::new(Vec::new()));
+
+        let root = LifecycleModule {
+            name: "root",
+            log: log.clone(),
+            import_child: false,
+        };
+
+        let mut app = Application::new(root);
+        block_on(app.start()).unwrap();
+        block_on(app.stop()).unwrap();
+
+        assert_eq!(
+            event_snapshot(&log),
+            vec![
+                "providers:root".to_string(),
+                "on_start:root".to_string(),
+                "on_stop:root".to_string(),
+            ]
+        );
     }
 
     #[test]
@@ -545,7 +850,7 @@ mod tests {
     #[test]
     fn test_multiple_injector_clones() {
         let mut app = Application::new(EmptyModule);
-        app.bootstrap();
+        app.bootstrap_sync().unwrap();
 
         let injectors: Vec<_> = (0..5).map(|_| app.injector()).collect();
         assert_eq!(injectors.len(), 5);
@@ -630,7 +935,7 @@ mod tests {
         };
 
         let mut app = Application::new(module);
-        app.bootstrap();
+        app.bootstrap_sync().unwrap();
 
         // depth 5, 4, 3, 2, 1, 0 = 6 modules total
         #[cfg(not(feature = "thread-safe"))]

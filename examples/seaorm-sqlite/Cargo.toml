@@ -1,0 +1,14 @@
+[package]
+name = "seaorm-sqlite-example"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+authors.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+sea-orm = { version = "1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+fluxdi = { path = "../../fluxdi", features = ["thread-safe", "async-factory"] }
+

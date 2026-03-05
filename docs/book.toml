@@ -1,0 +1,12 @@
+[book]
+authors = ["FluxDI Contributors"]
+language = "en"
+src = "src"
+title = "FluxDI Book"
+description = "Official documentation for FluxDI"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/binary-sea/fluxdi"
+edit-url-template = "https://github.com/binary-sea/fluxdi/edit/main/docs/{path}"

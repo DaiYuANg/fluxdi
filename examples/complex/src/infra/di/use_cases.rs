@@ -1,4 +1,4 @@
-use sadi::{Injector, Module, Provider};
+use fluxdi::{Injector, Module, Provider};
 
 use crate::core::{
     application::use_case::{

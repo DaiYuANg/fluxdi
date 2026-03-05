@@ -1,6 +1,6 @@
 [workspace]
-members = ["sadi", "examples/*"]
-default-members = ["sadi"]
+members = ["fluxdi", "examples/*"]
+default-members = ["fluxdi"]
 resolver = "2"
 
 [workspace.metadata.spellcheck]
@@ -9,7 +9,7 @@ config = "spellcheck.toml"
 [workspace.package]
 version = "1.1.0"
 edition = "2024"
-repository = "https://github.com/binary-sea/sadi"
-homepage = "https://github.com/binary-sea/sadi"
+repository = "https://github.com/binary-sea/fluxdi"
+homepage = "https://github.com/binary-sea/fluxdi"
 license-file = "LICENSE"
 authors = ["João Pedro Martins <mjoaopedro61@gmail.com>"]

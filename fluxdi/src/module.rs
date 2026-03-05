@@ -18,8 +18,8 @@
 //! # Examples
 //!
 //! ```
-//! use sadi::module::Module;
-//! use sadi::injector::Injector;
+//! use fluxdi::module::Module;
+//! use fluxdi::injector::Injector;
 //!
 //! struct DatabaseModule;
 //!
@@ -30,6 +30,15 @@
 //! }
 //! ```
 use crate::injector::Injector;
+use crate::{Error, runtime::Shared};
+use std::future::Future;
+use std::pin::Pin;
+
+#[cfg(not(feature = "thread-safe"))]
+pub type ModuleLifecycleFuture = Pin<Box<dyn Future<Output = Result<(), Error>> + 'static>>;
+
+#[cfg(feature = "thread-safe")]
+pub type ModuleLifecycleFuture = Pin<Box<dyn Future<Output = Result<(), Error>> + Send + 'static>>;
 
 /// Trait for defining a module in the dependency injection system.
 ///
@@ -45,19 +54,25 @@ use crate::injector::Injector;
 ///
 /// # Required Methods
 ///
-/// - [`providers`](Module::providers): Registers providers with the injector
+/// - None. Implement at least one of:
+///   - [`configure`](Module::configure) (recommended)
+///   - [`providers`](Module::providers) (legacy-compatible path)
 ///
 /// # Optional Methods
 ///
 /// - [`imports`](Module::imports): Returns other modules that this module depends on
+/// - [`providers`](Module::providers): Legacy registration hook (sync)
+/// - [`providers_async`](Module::providers_async): Async provider registration hook
+/// - [`on_start`](Module::on_start): Async startup lifecycle hook
+/// - [`on_stop`](Module::on_stop): Async shutdown lifecycle hook
 ///
 /// # Examples
 ///
 /// ## Basic Module
 ///
 /// ```
-/// use sadi::module::Module;
-/// use sadi::injector::Injector;
+/// use fluxdi::module::Module;
+/// use fluxdi::injector::Injector;
 ///
 /// struct LoggingModule;
 ///
@@ -71,8 +86,8 @@ use crate::injector::Injector;
 /// ## Module with Imports
 ///
 /// ```
-/// use sadi::module::Module;
-/// use sadi::injector::Injector;
+/// use fluxdi::module::Module;
+/// use fluxdi::injector::Injector;
 ///
 /// struct DatabaseModule;
 /// struct ConfigModule;
@@ -118,8 +133,8 @@ pub trait Module {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     /// use std::any::TypeId;
     ///
     /// struct MyModule;
@@ -150,8 +165,8 @@ pub trait Module {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct DatabaseModule;
     /// impl Module for DatabaseModule {
@@ -186,8 +201,8 @@ pub trait Module {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct CoreModule;
     /// impl Module for CoreModule {
@@ -207,6 +222,16 @@ pub trait Module {
         vec![]
     }
 
+    /// Configures providers for this module.
+    ///
+    /// This is the preferred registration hook used by `Application` bootstrap flows.
+    /// The default implementation delegates to [`providers`](Module::providers) for
+    /// backward compatibility.
+    fn configure(&self, injector: &Injector) -> Result<(), Error> {
+        self.providers(injector);
+        Ok(())
+    }
+
     /// Registers providers with the given injector.
     ///
     /// This method is called to configure the dependency injection container with
@@ -220,8 +245,8 @@ pub trait Module {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct MyModule;
     ///
@@ -233,6 +258,24 @@ pub trait Module {
     /// }
     /// ```
     fn providers(&self, _injector: &Injector) {}
+
+    /// Async variant of provider registration.
+    ///
+    /// Default behavior calls [`providers`](Module::providers) synchronously.
+    fn providers_async(&self, injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        let result = self.configure(&injector);
+        Box::pin(async move { result })
+    }
+
+    /// Lifecycle hook executed after this module and its imports finish registration.
+    fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// Lifecycle hook executed during application shutdown in reverse module order.
+    fn on_stop(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[cfg(feature = "thread-safe")]
@@ -249,8 +292,8 @@ pub trait Module: Send + Sync {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     /// use std::any::TypeId;
     ///
     /// struct MyModule;
@@ -281,8 +324,8 @@ pub trait Module: Send + Sync {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct DatabaseModule;
     /// impl Module for DatabaseModule {
@@ -317,8 +360,8 @@ pub trait Module: Send + Sync {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct CoreModule;
     /// impl Module for CoreModule {
@@ -338,6 +381,16 @@ pub trait Module: Send + Sync {
         vec![]
     }
 
+    /// Configures providers for this module.
+    ///
+    /// This is the preferred registration hook used by `Application` bootstrap flows.
+    /// The default implementation delegates to [`providers`](Module::providers) for
+    /// backward compatibility.
+    fn configure(&self, injector: &Injector) -> Result<(), Error> {
+        self.providers(injector);
+        Ok(())
+    }
+
     /// Registers providers with the given injector.
     ///
     /// This method is called to configure the dependency injection container with
@@ -351,8 +404,8 @@ pub trait Module: Send + Sync {
     /// # Examples
     ///
     /// ```
-    /// use sadi::module::Module;
-    /// use sadi::injector::Injector;
+    /// use fluxdi::module::Module;
+    /// use fluxdi::injector::Injector;
     ///
     /// struct MyModule;
     ///
@@ -364,11 +417,31 @@ pub trait Module: Send + Sync {
     /// }
     /// ```
     fn providers(&self, _injector: &Injector) {}
+
+    /// Async variant of provider registration.
+    ///
+    /// Default behavior calls [`providers`](Module::providers) synchronously.
+    fn providers_async(&self, injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        let result = self.configure(&injector);
+        Box::pin(async move { result })
+    }
+
+    /// Lifecycle hook executed after this module and its imports finish registration.
+    fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async { Ok(()) })
+    }
+
+    /// Lifecycle hook executed during application shutdown in reverse module order.
+    fn on_stop(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::Shared;
+    use futures::executor::block_on;
 
     struct EmptyModule;
 
@@ -411,6 +484,7 @@ mod tests {
 
         // Should not panic
         module.providers(&injector);
+        assert!(module.configure(&injector).is_ok());
     }
 
     #[test]
@@ -438,7 +512,18 @@ mod tests {
         let injector = Injector::root();
         for module in modules {
             module.providers(&injector);
+            assert!(module.configure(&injector).is_ok());
         }
+    }
+
+    #[test]
+    fn test_default_async_lifecycle_hooks_are_noop() {
+        let module = EmptyModule;
+        let injector = Shared::new(Injector::root());
+
+        assert!(block_on(module.providers_async(injector.clone())).is_ok());
+        assert!(block_on(module.on_start(injector.clone())).is_ok());
+        assert!(block_on(module.on_stop(injector)).is_ok());
     }
 
     #[test]

@@ -1,14 +1,14 @@
-# Contributing to SaDi
+# Contributing to FluxDI
 
-Thank you for your interest in contributing to SaDi! This document provides guidelines and information for contributors to help maintain code quality and ensure smooth collaboration.
+Thank you for your interest in contributing to FluxDI! This document provides guidelines and information for contributors to help maintain code quality and ensure smooth collaboration.
 
 ## 🚀 Quick Start
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/your-username/sadi.git
-   cd sadi
+   git clone https://github.com/your-username/fluxdi.git
+   cd fluxdi
    ```
 3. **Create a feature branch**:
    ```bash
@@ -30,8 +30,8 @@ Thank you for your interest in contributing to SaDi! This document provides guid
 
 ```bash
 # Clone the repository
-git clone https://github.com/JoaoPedro61/sadi.git
-cd sadi
+git clone https://github.com/JoaoPedro61/fluxdi.git
+cd fluxdi
 
 # Build the project
 cargo build
@@ -47,6 +47,9 @@ cargo fmt --check
 
 # Build documentation
 cargo doc --no-deps --open
+
+# Build mdBook documentation
+mdbook build docs
 ```
 
 ### Running Examples
@@ -124,7 +127,7 @@ cargo doc --no-deps                                       # Documentation builds
 ### Test Structure
 
 Tests are organized as follows:
-- **Unit tests**: In `src/sadi.rs` using `#[cfg(test)]` modules
+- **Unit tests**: In `src/fluxdi.rs` using `#[cfg(test)]` modules
 - **Doc tests**: Embedded in documentation comments
 - **Integration tests**: In `examples/` directory
 - **Example tests**: In `examples/basic/src/main.rs`
@@ -135,7 +138,7 @@ Tests are organized as follows:
 #[test]
 fn test_descriptive_name() {
     // Arrange
-    let container = SaDi::new()
+    let container = FluxDI::new()
         .factory(|_| MyService::new());
 
     // Act
@@ -179,9 +182,9 @@ fn test_descriptive_name() {
 /// # Examples
 ///
 /// ```rust
-/// use sadi::SaDi;
+/// use fluxdi::FluxDI;
 ///
-/// let container = SaDi::new()
+/// let container = FluxDI::new()
 ///     .factory(|_| MyService::new());
 /// let service = container.get::<MyService>();
 /// ```
@@ -350,7 +353,7 @@ When reporting bugs:
 
 ## ⚖️ Legal
 
-By contributing to SaDi, you agree that:
+By contributing to FluxDI, you agree that:
 
 - Your contributions will be licensed under the same license as the project (MIT)
 - You have the right to submit your contributions
@@ -363,8 +366,9 @@ Contributors are recognized in:
 - **CHANGELOG.md** for notable contributions
 - **GitHub contributors** page
 
-Thank you for helping make SaDi better! 🦀✨
+Thank you for helping make FluxDI better! 🦀✨
 
 ---
 
 **Questions?** Feel free to open an issue or start a discussion. We're here to help!
+
