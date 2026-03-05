@@ -52,6 +52,8 @@ pub enum ErrorKind {
     ResourceLimitExceeded,
     /// Module lifecycle hook failed.
     ModuleLifecycleFailed,
+    /// Dependency graph validation failed.
+    GraphValidationFailed,
 }
 
 /// Container error structure.
@@ -84,7 +86,32 @@ impl Error {
     pub fn service_not_provided(type_name: &str) -> Self {
         Self::new(
             ErrorKind::ServiceNotProvided,
-            format!("No provider registered for type: {}", type_name),
+            format!(
+                "No provider registered for type: {}. Register it in Module::configure(...) with injector.provide::<T>(Provider::...).",
+                type_name
+            ),
+        )
+    }
+
+    /// Named service provider not found for the requested type.
+    pub fn service_not_provided_named(type_name: &str, name: &str) -> Self {
+        Self::new(
+            ErrorKind::ServiceNotProvided,
+            format!(
+                "No provider registered for type: {} with name: {}. Register it with provide_named/try_provide_named.",
+                type_name, name
+            ),
+        )
+    }
+
+    /// Override requested for a type that has no registered provider.
+    pub fn service_not_provided_for_override(type_name: &str) -> Self {
+        Self::new(
+            ErrorKind::ServiceNotProvided,
+            format!(
+                "Cannot override provider for type: {} because no provider is registered. Register one first with provide/try_provide.",
+                type_name
+            ),
         )
     }
 
@@ -105,8 +132,19 @@ impl Error {
         Self::new(
             ErrorKind::ProviderAlreadyRegistered,
             format!(
-                "Provider ({} scope) already registered for type: {}",
+                "Provider ({} scope) already registered for type: {}. Use override_provider/try_override_provider to replace it.",
                 scope, type_name
+            ),
+        )
+    }
+
+    /// Named provider already registered for this type.
+    pub fn provider_already_registered_named(type_name: &str, name: &str, scope: &str) -> Self {
+        Self::new(
+            ErrorKind::ProviderAlreadyRegistered,
+            format!(
+                "Provider ({} scope) already registered for type: {} with name: {}.",
+                scope, type_name, name
             ),
         )
     }
@@ -116,7 +154,7 @@ impl Error {
         Self::new(
             ErrorKind::CircularDependency,
             format!(
-                "Circular dependency detected: {}",
+                "Circular dependency detected: {}. Break the cycle by introducing a trait boundary, lazy lookup, or refactoring the dependency direction.",
                 dependency_chain.join(" -> ")
             ),
         )
@@ -154,6 +192,17 @@ impl Error {
             ),
         )
     }
+
+    /// Dependency graph validation failed.
+    pub fn graph_validation_failed(details: &str) -> Self {
+        Self::new(
+            ErrorKind::GraphValidationFailed,
+            format!(
+                "Dependency graph validation failed: {}. Check dependency_graph()/validate_graph() output for details.",
+                details
+            ),
+        )
+    }
 }
 
 impl fmt::Display for Error {
@@ -173,79 +222,4 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn service_not_provided_error() {
-        let err = Error::service_not_provided("MyType");
-        assert!(err.kind == ErrorKind::ServiceNotProvided);
-        assert!(err.message.contains("MyType"));
-        assert!(err.message.contains("provider"));
-    }
-
-    #[test]
-    fn type_mismatch_error() {
-        let err = Error::type_mismatch("OtherType");
-        assert!(err.kind == ErrorKind::TypeMismatch);
-        assert!(err.message.contains("OtherType"));
-    }
-
-    #[test]
-    fn provider_already_registered_error() {
-        let err = Error::provider_already_registered("Foo", "transient");
-        assert!(err.kind == ErrorKind::ProviderAlreadyRegistered);
-        assert!(err.message.contains("Foo"));
-        assert!(err.message.contains("transient"));
-    }
-
-    #[test]
-    fn circular_dependency_error() {
-        let chain = ["A", "B", "A"];
-        let err = Error::circular_dependency(&chain);
-        assert!(err.kind == ErrorKind::CircularDependency);
-        assert!(err.message.contains("A -> B -> A"));
-    }
-
-    #[test]
-    fn async_factory_requires_async_resolve_error() {
-        let err = Error::async_factory_requires_async_resolve("AsyncType");
-        assert!(err.kind == ErrorKind::AsyncFactoryRequiresAsyncResolve);
-        assert!(err.message.contains("AsyncType"));
-        assert!(err.message.contains("try_resolve_async"));
-    }
-
-    #[test]
-    fn resource_limit_exceeded_error() {
-        let err = Error::resource_limit_exceeded("DbPool", "max_concurrent_creations=1");
-        assert!(err.kind == ErrorKind::ResourceLimitExceeded);
-        assert!(err.message.contains("DbPool"));
-        assert!(err.message.contains("max_concurrent_creations=1"));
-    }
-
-    #[test]
-    fn module_lifecycle_failed_error() {
-        let err = Error::module_lifecycle_failed("WebModule", "on_start", "bind failed");
-        assert!(err.kind == ErrorKind::ModuleLifecycleFailed);
-        assert!(err.message.contains("WebModule"));
-        assert!(err.message.contains("on_start"));
-        assert!(err.message.contains("bind failed"));
-    }
-
-    #[test]
-    fn display_trait() {
-        let err = Error::service_not_provided("X");
-        let s = format!("{}", err);
-        #[cfg(feature = "debug")]
-        assert!(s.contains("ServiceNotProvided"));
-        assert!(s.contains("X"));
-    }
-
-    #[test]
-    fn error_kind_equality() {
-        let err1 = Error::type_mismatch("A");
-        let err2 = Error::type_mismatch("B");
-        assert!(err1.kind == err2.kind);
-        assert_ne!(err1.message, err2.message);
-    }
-}
+mod tests;
