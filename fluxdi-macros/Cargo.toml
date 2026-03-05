@@ -7,6 +7,7 @@ homepage.workspace = true
 license-file.workspace = true
 authors.workspace = true
 description = "Procedural macros for FluxDI"
+readme = "README.md"
 
 [lib]
 proc-macro = true

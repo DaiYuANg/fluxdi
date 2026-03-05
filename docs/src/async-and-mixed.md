@@ -4,7 +4,7 @@ Enable async provider factories:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.1.0", features = ["async-factory"] }
+fluxdi = { version = "1.2.0", features = ["async-factory"] }
 ```
 
 Register async providers with `Provider::*_async` and resolve using:

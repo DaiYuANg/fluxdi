@@ -28,3 +28,9 @@ Run one example:
 ```bash
 cargo run -p graph-tooling-example
 ```
+
+Examples initialize FluxDI logging by default. For verbose DI-node diagnostics:
+
+```bash
+RUST_LOG=fluxdi=trace cargo run -p basic
+```

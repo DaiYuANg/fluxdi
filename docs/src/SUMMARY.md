@@ -2,6 +2,7 @@
 
 - [Introduction](./introduction.md)
 - [Getting Started](./getting-started.md)
+- [Derive Macros](./derive-macros.md)
 - [Providers And Resolution](./providers-and-resolution.md)
 - [Modules And Lifecycle](./modules-and-lifecycle.md)
 - [Async And Mixed Usage](./async-and-mixed.md)

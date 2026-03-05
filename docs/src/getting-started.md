@@ -4,7 +4,7 @@
 
 ```toml
 [dependencies]
-fluxdi = "1.1.0"
+fluxdi = "1.2.0"
 ```
 
 For local workspace usage:
@@ -32,6 +32,8 @@ impl Module for AppModule {
 }
 
 fn main() {
+    fluxdi::init_logging();
+
     let mut app = Application::new(AppModule);
     app.bootstrap_sync().expect("bootstrap failed");
 
@@ -47,11 +49,19 @@ cargo check --workspace
 cargo test --workspace
 ```
 
+## Logging In Local Runs
+
+Enable detailed DI node logs when running examples/apps:
+
+```bash
+RUST_LOG=fluxdi=trace cargo run -p basic
+```
+
 ## Optional Derive Macros
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.1.0", features = ["macros"] }
+fluxdi = { version = "1.2.0", features = ["macros"] }
 ```
 
 Then:

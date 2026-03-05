@@ -31,7 +31,7 @@ Enable:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.1.0", features = ["tracing"] }
+fluxdi = { version = "1.2.0", features = ["tracing"] }
 ```
 
 ## Metrics / Prometheus
@@ -40,14 +40,14 @@ Enable metrics:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.1.0", features = ["metrics"] }
+fluxdi = { version = "1.2.0", features = ["metrics"] }
 ```
 
 Prometheus export:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.1.0", features = ["prometheus"] }
+fluxdi = { version = "1.2.0", features = ["prometheus"] }
 ```
 
 Then call:
@@ -61,7 +61,7 @@ Enable:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.1.0", features = ["opentelemetry"] }
+fluxdi = { version = "1.2.0", features = ["opentelemetry"] }
 ```
 
 Helpers:
