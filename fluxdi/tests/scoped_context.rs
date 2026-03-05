@@ -2,6 +2,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use fluxdi::{Injector, Provider, Shared};
 
+#[cfg(feature = "thread-safe")]
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Barrier},
+    thread,
+};
+
 #[derive(Debug)]
 struct ScopedService {
     serial: usize,
@@ -134,4 +141,87 @@ fn scoped_named_and_set_bindings_are_scope_local() {
     assert!(!Shared::ptr_eq(&set_a1[0], &set_b1[0]));
     assert_eq!(set_a1[0].serial, 0);
     assert_eq!(set_b1[0].serial, 1);
+}
+
+#[cfg(feature = "thread-safe")]
+#[test]
+fn scoped_concurrent_resolve_within_single_scope_converges_to_cached_instance() {
+    const THREADS: usize = 32;
+    static CREATED: AtomicUsize = AtomicUsize::new(0);
+    CREATED.store(0, Ordering::SeqCst);
+
+    let injector = Injector::root();
+    injector.provide::<ScopedService>(Provider::scoped(|_| {
+        Shared::new(ScopedService {
+            serial: CREATED.fetch_add(1, Ordering::SeqCst),
+        })
+    }));
+
+    let scope = Shared::new(injector.create_scope());
+    let start = Arc::new(Barrier::new(THREADS));
+
+    let handles: Vec<_> = (0..THREADS)
+        .map(|_| {
+            let scope = scope.clone();
+            let start = start.clone();
+            thread::spawn(move || {
+                start.wait();
+                scope.as_ref().resolve::<ScopedService>().serial
+            })
+        })
+        .collect();
+
+    let serials: Vec<usize> = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("thread join failed"))
+        .collect();
+
+    let created = CREATED.load(Ordering::SeqCst);
+    assert!(created >= 1);
+    assert!(created <= THREADS);
+    assert!(serials.iter().all(|serial| *serial < created));
+
+    let stable_a = scope.as_ref().resolve::<ScopedService>();
+    let stable_b = scope.as_ref().resolve::<ScopedService>();
+    assert!(Shared::ptr_eq(&stable_a, &stable_b));
+}
+
+#[cfg(feature = "thread-safe")]
+#[test]
+fn scoped_concurrent_scopes_remain_isolated_under_load() {
+    const THREADS: usize = 48;
+    static CREATED: AtomicUsize = AtomicUsize::new(0);
+    CREATED.store(0, Ordering::SeqCst);
+
+    let injector = Shared::new(Injector::root());
+    injector.provide::<ScopedService>(Provider::scoped(|_| {
+        Shared::new(ScopedService {
+            serial: CREATED.fetch_add(1, Ordering::SeqCst),
+        })
+    }));
+
+    let start = Arc::new(Barrier::new(THREADS));
+    let handles: Vec<_> = (0..THREADS)
+        .map(|_| {
+            let injector = injector.clone();
+            let start = start.clone();
+            thread::spawn(move || {
+                start.wait();
+                let scope = injector.as_ref().create_scope();
+                let first = scope.resolve::<ScopedService>();
+                let second = scope.resolve::<ScopedService>();
+                assert!(Shared::ptr_eq(&first, &second));
+                first.serial
+            })
+        })
+        .collect();
+
+    let serials: Vec<usize> = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("thread join failed"))
+        .collect();
+
+    let unique: BTreeSet<usize> = serials.iter().copied().collect();
+    assert_eq!(unique.len(), THREADS);
+    assert_eq!(CREATED.load(Ordering::SeqCst), THREADS);
 }

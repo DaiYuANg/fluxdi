@@ -18,6 +18,11 @@ Current workspace examples:
 - `examples/axum-lifecycle`
 - `examples/actix`
 
+Scoped web request demos:
+
+- `examples/axum` -> `GET /scoped/debug`
+- `examples/actix` -> `GET /hello/scoped`
+
 Run one example:
 
 ```bash

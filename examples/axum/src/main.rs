@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::Path,
+    extract::{Path, State},
     http::StatusCode,
     routing::{delete, get, post, put},
 };
@@ -16,6 +16,7 @@ use fluxdi::{
     Application, Error, Injector, Module, Provider, Shared, module::ModuleLifecycleFuture,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CreateUserRequest {
@@ -35,11 +36,24 @@ struct UpdateTodoStatusRequest {
     completed: bool,
 }
 
+#[derive(Debug)]
+struct RequestContext {
+    request_scope_id: usize,
+}
+
+static NEXT_REQUEST_SCOPE_ID: AtomicUsize = AtomicUsize::new(1);
+
 #[derive(Debug, Serialize)]
 struct ApiResponse<T> {
     success: bool,
     data: Option<T>,
     error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct ScopedDebugResponse {
+    request_scope_id: usize,
+    same_instance_within_scope: bool,
 }
 
 impl<T: Serialize> ApiResponse<T> {
@@ -166,9 +180,23 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
+async fn scoped_debug(
+    State(state): State<InjectorState>,
+) -> Json<ApiResponse<ScopedDebugResponse>> {
+    let scoped = state.injector().create_scope();
+    let context_a = scoped.resolve::<RequestContext>();
+    let context_b = scoped.resolve::<RequestContext>();
+
+    Json(ApiResponse::ok(ScopedDebugResponse {
+        request_scope_id: context_a.request_scope_id,
+        same_instance_within_scope: Shared::ptr_eq(&context_a, &context_b),
+    }))
+}
+
 fn build_router(state: InjectorState) -> Router {
     Router::new()
         .route("/health", get(health_check))
+        .route("/scoped/debug", get(scoped_debug))
         .route("/users", post(create_user))
         .route("/users", get(get_all_users))
         .route("/users/{id}", get(get_user_by_id))
@@ -192,6 +220,11 @@ impl Module for WebApiModule {
             let client = SqliteClient::new().expect("Failed to load sqlite client");
             Shared::new(client)
         }));
+        injector.provide::<RequestContext>(Provider::scoped(|_| {
+            Shared::new(RequestContext {
+                request_scope_id: NEXT_REQUEST_SCOPE_ID.fetch_add(1, Ordering::SeqCst),
+            })
+        }));
         Ok(())
     }
 
@@ -209,6 +242,7 @@ impl Module for WebApiModule {
             println!("🚀 Server running on http://127.0.0.1:3000");
             println!("📚 Available endpoints:");
             println!("  GET    /health");
+            println!("  GET    /scoped/debug");
             println!("  POST   /users");
             println!("  GET    /users");
             println!("  GET    /users/:id");

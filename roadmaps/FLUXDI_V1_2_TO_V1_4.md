@@ -146,7 +146,7 @@ Acceptance criteria:
 
 ### Epic G - Scoped Context
 
-Status: [~] In progress
+Status: [x] Completed
 
 Target outcomes:
 
@@ -156,8 +156,8 @@ Planned tasks:
 
 - [x] Add `create_scope()` API and scoped injector semantics.
 - [x] Define scoped cache lifecycle and parent lookup behavior.
-- [ ] Integrate scope usage docs for Axum/Actix examples.
-- [ ] Add stress/concurrency tests for scoped resolve.
+- [x] Integrate scope usage docs for Axum/Actix examples.
+- [x] Add stress/concurrency tests for scoped resolve.
 
 Acceptance criteria:
 
