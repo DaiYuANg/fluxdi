@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/fluxdi.svg)](https://crates.io/crates/fluxdi)
 [![Documentation](https://docs.rs/fluxdi/badge.svg)](https://docs.rs/fluxdi)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Build Status](https://github.com/binary-sea/fluxdi/actions/workflows/CI.yml/badge.svg)](https://github.com/binary-sea/fluxdi/actions/workflows/CI.yml)
+[![Build Status](https://github.com/DaiYuANg/fluxdi/actions/workflows/CI.yml/badge.svg)](https://github.com/DaiYuANg/fluxdi/actions/workflows/CI.yml)
 
 A lightweight, type-safe dependency injection container for Rust applications. FluxDI provides ergonomic service registration (including trait-object bindings), transient and singleton lifetimes, semi-automatic dependency resolution, and circular dependency detection.
 
@@ -792,7 +792,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/binary-sea/fluxdi.git
+git clone https://github.com/DaiYuANg/fluxdi.git
 cd fluxdi
 ```
 
@@ -850,7 +850,7 @@ cargo clippy -- -D warnings
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/binary-sea/fluxdi/blob/main/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/DaiYuANg/fluxdi/blob/main/LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -861,7 +861,7 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 ---
 
 **FluxDI** - A semi-automatic dependency injection container for Rust  
-**Repository:** [binary-sea/fluxdi](https://github.com/binary-sea/fluxdi)  
+**Repository:** [DaiYuANg/fluxdi](https://github.com/DaiYuANg/fluxdi)  
 **Made with ❤️ by the Binary Sea Team**
 
 

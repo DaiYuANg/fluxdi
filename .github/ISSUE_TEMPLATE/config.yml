@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Question or Discussion
-    url: https://github.com/JoaoPedro61/fluxdi/discussions
+    url: https://github.com/DaiYuANg/fluxdi/discussions
     about: Ask questions or discuss ideas about FluxDI dependency injection
   - name: 🚀 Feature Idea Discussion
-    url: https://github.com/JoaoPedro61/fluxdi/discussions/categories/ideas
+    url: https://github.com/DaiYuANg/fluxdi/discussions/categories/ideas
     about: Discuss potential features before creating a formal request

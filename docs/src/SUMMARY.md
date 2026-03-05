@@ -8,4 +8,3 @@
 - [Web Integrations](./web-integrations.md)
 - [Observability](./observability.md)
 - [Examples](./examples.md)
-- [Migration From SaDi](./migration-from-sadi.md)

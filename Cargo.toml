@@ -9,7 +9,7 @@ config = "spellcheck.toml"
 [workspace.package]
 version = "1.1.0"
 edition = "2024"
-repository = "https://github.com/binary-sea/fluxdi"
-homepage = "https://github.com/binary-sea/fluxdi"
+repository = "https://github.com/DaiYuANg/fluxdi"
+homepage = "https://github.com/DaiYuANg/fluxdi"
 license-file = "LICENSE"
 authors = ["João Pedro Martins <mjoaopedro61@gmail.com>"]

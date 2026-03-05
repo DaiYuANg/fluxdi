@@ -30,7 +30,7 @@ Thank you for your interest in contributing to FluxDI! This document provides gu
 
 ```bash
 # Clone the repository
-git clone https://github.com/JoaoPedro61/fluxdi.git
+git clone https://github.com/DaiYuANg/fluxdi.git
 cd fluxdi
 
 # Build the project
