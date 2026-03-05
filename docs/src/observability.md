@@ -2,6 +2,29 @@
 
 FluxDI exposes stable observability identifiers in `fluxdi::observability`.
 
+## Logging
+
+Enable:
+
+```toml
+[dependencies]
+fluxdi = { version = "1.2.0", features = ["logging"] }
+```
+
+Initialize once at app startup:
+
+```rust
+fluxdi::try_init_logging().expect("failed to initialize logging");
+```
+
+`logging` reads `RUST_LOG` and defaults to `info` when unset.
+
+For node-level diagnostics (registration, provider lookup, cache hit/miss, factory execution), set:
+
+```bash
+RUST_LOG=fluxdi=trace
+```
+
 ## Tracing
 
 Enable:

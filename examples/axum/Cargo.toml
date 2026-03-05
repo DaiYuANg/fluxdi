@@ -10,7 +10,7 @@ authors.workspace = true
 [dependencies]
 axum = "0.8"
 complex = { path = "./../complex" }
-fluxdi = { path = "../../fluxdi", features = ["axum"] }
+fluxdi = { path = "../../fluxdi", features = ["axum", "logging"] }
 serde = { version = "1.0.228", features = ["derive", "serde_derive"] }
 serde_json = "1.0.149"
 tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros", "sync"] }

@@ -8,6 +8,6 @@ license-file.workspace = true
 authors.workspace = true
 
 [dependencies]
-fluxdi = { path = "../../fluxdi", features = ["thread-safe", "async-factory"] }
+fluxdi = { path = "../../fluxdi", features = ["thread-safe", "async-factory", "logging"] }
 tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros"] }
 

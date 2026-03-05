@@ -31,6 +31,8 @@ impl Module for AsyncModule {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    fluxdi::init_logging();
+
     let mut app = Application::new(AsyncModule);
     app.bootstrap().await?;
     app.shutdown().await

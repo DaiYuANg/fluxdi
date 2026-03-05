@@ -15,6 +15,8 @@ impl Module for SyncModule {
 }
 
 fn main() -> Result<(), Error> {
+    fluxdi::init_logging();
+
     let mut app = Application::new(SyncModule);
     app.bootstrap_sync()?;
 

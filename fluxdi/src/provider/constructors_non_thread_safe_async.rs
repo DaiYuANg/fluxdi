@@ -9,6 +9,15 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(Injector) -> Fut + 'static,
         Fut: Future<Output = Shared<T>> + 'static,
     {
+        #[cfg(feature = "tracing")]
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Module,
+            threading = "single-threaded",
+            factory_mode = "async",
+            "Creating async singleton provider"
+        );
+
         Provider::<T> {
             scope: Scope::Module,
             factory: Box::new(|_| {
@@ -19,7 +28,16 @@ impl<T: ?Sized + 'static> Provider<T> {
             async_factory: Some(Box::new(move |injector| {
                 Box::pin({
                     let future = factory(injector);
-                    async move { Instance::new(future.await) }
+                    async move {
+                        #[cfg(feature = "tracing")]
+                        debug!(
+                            type_name = std::any::type_name::<T>(),
+                            scope = %Scope::Module,
+                            op = "provider_factory_call_async",
+                            "Executing async singleton factory"
+                        );
+                        Instance::new(future.await)
+                    }
                 })
             })),
             limits: Limits::default(),
@@ -35,6 +53,15 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(Injector) -> Fut + 'static,
         Fut: Future<Output = Shared<T>> + 'static,
     {
+        #[cfg(feature = "tracing")]
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Transient,
+            threading = "single-threaded",
+            factory_mode = "async",
+            "Creating async transient provider"
+        );
+
         Provider::<T> {
             scope: Scope::Transient,
             factory: Box::new(|_| {
@@ -45,7 +72,16 @@ impl<T: ?Sized + 'static> Provider<T> {
             async_factory: Some(Box::new(move |injector| {
                 Box::pin({
                     let future = factory(injector);
-                    async move { Instance::new(future.await) }
+                    async move {
+                        #[cfg(feature = "tracing")]
+                        debug!(
+                            type_name = std::any::type_name::<T>(),
+                            scope = %Scope::Transient,
+                            op = "provider_factory_call_async",
+                            "Executing async transient factory"
+                        );
+                        Instance::new(future.await)
+                    }
                 })
             })),
             limits: Limits::default(),
@@ -61,6 +97,15 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(Injector) -> Fut + 'static,
         Fut: Future<Output = Shared<T>> + 'static,
     {
+        #[cfg(feature = "tracing")]
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Root,
+            threading = "single-threaded",
+            factory_mode = "async",
+            "Creating async root provider"
+        );
+
         Provider::<T> {
             scope: Scope::Root,
             factory: Box::new(|_| {
@@ -71,7 +116,16 @@ impl<T: ?Sized + 'static> Provider<T> {
             async_factory: Some(Box::new(move |injector| {
                 Box::pin({
                     let future = factory(injector);
-                    async move { Instance::new(future.await) }
+                    async move {
+                        #[cfg(feature = "tracing")]
+                        debug!(
+                            type_name = std::any::type_name::<T>(),
+                            scope = %Scope::Root,
+                            op = "provider_factory_call_async",
+                            "Executing async root factory"
+                        );
+                        Instance::new(future.await)
+                    }
                 })
             })),
             limits: Limits::default(),
@@ -87,6 +141,15 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(Injector) -> Fut + 'static,
         Fut: Future<Output = Shared<T>> + 'static,
     {
+        #[cfg(feature = "tracing")]
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Scoped,
+            threading = "single-threaded",
+            factory_mode = "async",
+            "Creating async scoped provider"
+        );
+
         Provider::<T> {
             scope: Scope::Scoped,
             factory: Box::new(|_| {
@@ -97,7 +160,16 @@ impl<T: ?Sized + 'static> Provider<T> {
             async_factory: Some(Box::new(move |injector| {
                 Box::pin({
                     let future = factory(injector);
-                    async move { Instance::new(future.await) }
+                    async move {
+                        #[cfg(feature = "tracing")]
+                        debug!(
+                            type_name = std::any::type_name::<T>(),
+                            scope = %Scope::Scoped,
+                            op = "provider_factory_call_async",
+                            "Executing async scoped factory"
+                        );
+                        Instance::new(future.await)
+                    }
                 })
             })),
             limits: Limits::default(),

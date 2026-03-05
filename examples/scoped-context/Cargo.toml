@@ -8,4 +8,4 @@ license-file.workspace = true
 authors.workspace = true
 
 [dependencies]
-fluxdi = { path = "../../fluxdi" }
+fluxdi = { path = "../../fluxdi", features = ["logging"] }

@@ -14,6 +14,8 @@ struct RequestId(u64);
 
 #[tokio::main]
 async fn main() {
+    fluxdi::init_logging();
+
     let injector = Injector::root();
     let counter = Arc::new(AtomicU64::new(1));
 

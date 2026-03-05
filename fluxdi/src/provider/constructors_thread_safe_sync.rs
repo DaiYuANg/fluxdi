@@ -60,13 +60,24 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
     {
         #[cfg(feature = "tracing")]
-        info!("Creating singleton provider with Module scope (thread-safe)");
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Module,
+            threading = "thread-safe",
+            factory_mode = "sync",
+            "Creating singleton provider"
+        );
 
         Provider::<T> {
             scope: Scope::Module,
             factory: Box::new(move |injector| {
                 #[cfg(feature = "tracing")]
-                debug!("Executing singleton factory for type instantiation");
+                debug!(
+                    type_name = std::any::type_name::<T>(),
+                    scope = %Scope::Module,
+                    op = "provider_factory_call",
+                    "Executing singleton factory"
+                );
 
                 Instance::new(factory(injector))
             }),
@@ -87,7 +98,13 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
     {
         #[cfg(feature = "tracing")]
-        info!("Creating scoped provider with Scoped scope (thread-safe)");
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Scoped,
+            threading = "thread-safe",
+            factory_mode = "sync",
+            "Creating scoped provider"
+        );
 
         Provider::<T> {
             scope: Scope::Scoped,
@@ -150,13 +167,24 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
     {
         #[cfg(feature = "tracing")]
-        info!("Creating transient provider with Transient scope (thread-safe)");
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Transient,
+            threading = "thread-safe",
+            factory_mode = "sync",
+            "Creating transient provider"
+        );
 
         Provider::<T> {
             scope: Scope::Transient,
             factory: Box::new(move |injector| {
                 #[cfg(feature = "tracing")]
-                debug!("Executing transient factory - creating new instance");
+                debug!(
+                    type_name = std::any::type_name::<T>(),
+                    scope = %Scope::Transient,
+                    op = "provider_factory_call",
+                    "Executing transient factory"
+                );
 
                 Instance::new(factory(injector))
             }),
@@ -218,13 +246,24 @@ impl<T: ?Sized + 'static> Provider<T> {
         F: Fn(&Injector) -> Shared<T> + Send + Sync + 'static,
     {
         #[cfg(feature = "tracing")]
-        info!("Creating root provider with Root scope (thread-safe)");
+        info!(
+            type_name = std::any::type_name::<T>(),
+            scope = %Scope::Root,
+            threading = "thread-safe",
+            factory_mode = "sync",
+            "Creating root provider"
+        );
 
         Provider::<T> {
             scope: Scope::Root,
             factory: Box::new(move |injector| {
                 #[cfg(feature = "tracing")]
-                debug!("Executing root factory for type instantiation");
+                debug!(
+                    type_name = std::any::type_name::<T>(),
+                    scope = %Scope::Root,
+                    op = "provider_factory_call",
+                    "Executing root factory"
+                );
 
                 Instance::new(factory(injector))
             }),

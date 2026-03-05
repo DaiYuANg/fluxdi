@@ -30,6 +30,8 @@ impl CacheBackend for MemoryCache {
 }
 
 fn main() {
+    fluxdi::init_logging();
+
     let injector = Injector::root();
 
     injector.provide_named::<dyn CacheBackend>(

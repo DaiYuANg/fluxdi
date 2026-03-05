@@ -104,6 +104,8 @@ async fn bind_random_listener() -> io::Result<(TcpListener, u16)> {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    fluxdi::init_logging();
+
     let mut app = Application::new(DualHttpModule);
     app.bootstrap().await?;
 

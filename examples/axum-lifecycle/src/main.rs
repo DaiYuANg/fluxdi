@@ -42,6 +42,8 @@ impl Module for WebModule {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    fluxdi::init_logging();
+
     let mut app = Application::new(WebModule);
     app.bootstrap().await
 }

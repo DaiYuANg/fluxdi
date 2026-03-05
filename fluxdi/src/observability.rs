@@ -7,6 +7,8 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 #[cfg(feature = "metrics")]
 use std::time::Duration;
+#[cfg(feature = "logging")]
+use tracing_subscriber::EnvFilter;
 
 /// Span name emitted during provider registration.
 pub const SPAN_PROVIDE: &str = "fluxdi.provide";
@@ -279,6 +281,31 @@ impl MetricsState {
 #[cfg(feature = "metrics")]
 fn duration_to_nanos_u64(duration: Duration) -> u64 {
     duration.as_nanos().min(u64::MAX as u128) as u64
+}
+
+#[cfg(feature = "logging")]
+fn default_env_filter() -> EnvFilter {
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
+}
+
+/// Initializes a default text logging subscriber for FluxDI tracing events.
+///
+/// This helper is available when the `logging` feature is enabled.
+/// It reads filters from `RUST_LOG` and falls back to `info` when the
+/// environment variable is not set.
+#[cfg(feature = "logging")]
+pub fn try_init_logging() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    tracing_subscriber::fmt()
+        .with_env_filter(default_env_filter())
+        .try_init()
+}
+
+/// Initializes logging and ignores repeated initialization errors.
+///
+/// Use [`try_init_logging`] if you need to handle initialization failures.
+#[cfg(feature = "logging")]
+pub fn init_logging() {
+    let _ = try_init_logging();
 }
 
 #[cfg(feature = "opentelemetry")]

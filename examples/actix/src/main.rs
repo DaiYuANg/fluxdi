@@ -40,6 +40,8 @@ async fn hello_scoped(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    fluxdi::init_logging();
+
     let injector = Shared::new(Injector::root());
     injector.provide::<GreetingService>(Provider::root(|_| {
         Shared::new(GreetingService {

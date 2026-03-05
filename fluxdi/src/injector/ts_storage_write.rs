@@ -6,6 +6,8 @@ impl Injector {
         T: ?Sized + Send + Sync + 'static,
     {
         let type_id = TypeId::of::<T>();
+        #[cfg(feature = "tracing")]
+        let type_name = std::any::type_name::<T>();
 
         #[cfg(feature = "lock-free")]
         {
@@ -20,6 +22,13 @@ impl Injector {
                 .unwrap()
                 .insert(type_id, instance);
         }
+
+        #[cfg(feature = "tracing")]
+        trace!(
+            type_name = type_name,
+            op = "instance_store",
+            "Stored resolved instance in cache"
+        );
     }
 
     pub(crate) fn store_set_instance<T>(
@@ -30,6 +39,8 @@ impl Injector {
         T: ?Sized + Send + Sync + 'static,
     {
         let key = SetProviderKey::of::<T>(provider_ref);
+        #[cfg(feature = "tracing")]
+        let type_name = std::any::type_name::<T>();
 
         #[cfg(feature = "lock-free")]
         {
@@ -44,6 +55,14 @@ impl Injector {
                 .unwrap()
                 .insert(key, instance);
         }
+
+        #[cfg(feature = "tracing")]
+        trace!(
+            type_name = type_name,
+            op = "instance_store_set",
+            provider_ptr = key.provider_ptr,
+            "Stored set-binding instance in cache"
+        );
     }
 
     pub(crate) fn store_instance_named<T>(&self, name: &str, instance: Shared<Instance<T>>)
@@ -51,6 +70,8 @@ impl Injector {
         T: ?Sized + Send + Sync + 'static,
     {
         let key = NamedTypeKey::of::<T>(name);
+        #[cfg(feature = "tracing")]
+        let type_name = std::any::type_name::<T>();
 
         #[cfg(feature = "lock-free")]
         {
@@ -65,6 +86,14 @@ impl Injector {
                 .unwrap()
                 .insert(key, instance);
         }
+
+        #[cfg(feature = "tracing")]
+        trace!(
+            type_name = type_name,
+            name = %name,
+            op = "instance_store_named",
+            "Stored named instance in cache"
+        );
     }
 
     pub(crate) fn store_provider<T>(&self, provider: Provider<T>) -> Result<(), Error>
@@ -77,10 +106,25 @@ impl Injector {
         let scope_text = scope.to_string();
         let graph_meta = ProviderGraphMeta::of::<T>(scope, provider.dependency_hints.clone());
 
+        #[cfg(feature = "tracing")]
+        debug!(
+            type_name = type_name,
+            scope = %scope,
+            op = "provider_store",
+            "Storing provider definition"
+        );
+
         #[cfg(feature = "lock-free")]
         {
             match self.inner.providers.entry(type_id) {
                 DashEntry::Occupied(_) => {
+                    #[cfg(feature = "tracing")]
+                    debug!(
+                        type_name = type_name,
+                        scope = %scope,
+                        op = "provider_store",
+                        "Provider registration rejected: duplicate binding"
+                    );
                     return Err(Error::provider_already_registered(
                         type_name,
                         scope_text.as_str(),
@@ -97,6 +141,13 @@ impl Injector {
         {
             let mut providers = self.inner.providers.write().unwrap();
             if providers.contains_key(&type_id) {
+                #[cfg(feature = "tracing")]
+                debug!(
+                    type_name = type_name,
+                    scope = %scope,
+                    op = "provider_store",
+                    "Provider registration rejected: duplicate binding"
+                );
                 return Err(Error::provider_already_registered(
                     type_name,
                     scope_text.as_str(),
@@ -111,6 +162,14 @@ impl Injector {
                 .insert(type_id, graph_meta);
         }
 
+        #[cfg(feature = "tracing")]
+        debug!(
+            type_name = type_name,
+            scope = %scope,
+            op = "provider_store",
+            "Provider definition stored"
+        );
+
         Ok(())
     }
 
@@ -119,6 +178,10 @@ impl Injector {
         T: ?Sized + Send + Sync + 'static,
     {
         let type_id = TypeId::of::<T>();
+        #[cfg(feature = "tracing")]
+        let type_name = std::any::type_name::<T>();
+        #[cfg(feature = "tracing")]
+        let scope = provider.scope;
         let graph_meta =
             ProviderGraphMeta::of::<T>(provider.scope, provider.dependency_hints.clone());
 
@@ -158,6 +221,14 @@ impl Injector {
                 .or_default()
                 .push(graph_meta);
         }
+
+        #[cfg(feature = "tracing")]
+        debug!(
+            type_name = type_name,
+            scope = %scope,
+            op = "provider_store_set",
+            "Provider appended to set binding"
+        );
 
         Ok(())
     }

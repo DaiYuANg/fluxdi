@@ -25,6 +25,8 @@ impl Plugin for MetricsPlugin {
 struct AppService;
 
 fn main() {
+    fluxdi::init_logging();
+
     let injector = Injector::root();
 
     injector.provide::<Database>(Provider::singleton(|_| Shared::new(Database)));

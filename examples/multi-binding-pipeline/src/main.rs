@@ -39,6 +39,8 @@ impl Middleware for Prefix {
 }
 
 fn main() {
+    fluxdi::init_logging();
+
     let injector = Injector::root();
 
     // Registration order defines execution order.

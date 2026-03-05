@@ -13,6 +13,8 @@ struct RequestContext {
 static NEXT_REQUEST_ID: AtomicUsize = AtomicUsize::new(1);
 
 fn main() {
+    fluxdi::init_logging();
+
     let injector = Injector::root();
 
     injector.provide::<AppName>(Provider::root(|_| Shared::new(AppName("fluxdi"))));

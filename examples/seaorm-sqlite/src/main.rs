@@ -50,6 +50,8 @@ impl Module for SeaOrmSqliteModule {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    fluxdi::init_logging();
+
     let mut app = Application::new(SeaOrmSqliteModule);
     app.bootstrap().await?;
     app.shutdown().await

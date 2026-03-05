@@ -15,7 +15,7 @@ A lightweight, type-safe dependency injection container for Rust applications. F
 - 🧭 **Scoped Context**: Per-request/task instances via `create_scope()` + `Provider::scoped(...)`
 - 🔍 **Circular Detection**: Prevents infinite loops in dependency graphs
 - ❌ **Error Handling**: Comprehensive error types with detailed messages
-- 📊 **Optional Logging**: Tracing integration with feature gates
+- 📊 **Optional Logging**: Built-in logging initialization and tracing integration
 - 🚀 **Zero-Cost Abstractions**: Feature gates enable compile-time optimization
 - 🧵 **Thread-Safe by Default**: Uses `Arc` + `RwLock` for concurrent access
 - 📦 **Module System**: Organize services into reusable modules
@@ -732,6 +732,32 @@ Async non-blocking wait (optional):
 fluxdi = { path = "../fluxdi", features = ["thread-safe", "async-factory", "resource-limit-async"] }
 ```
 
+### Logging
+
+Enable the `logging` feature for a default text logger:
+
+```toml
+[dependencies]
+fluxdi = { path = "../fluxdi", features = ["logging"] }
+```
+
+```rust
+fn main() {
+    fluxdi::try_init_logging().expect("failed to initialize logging");
+
+    // FluxDI spans/events will be printed with default formatting.
+}
+```
+
+`logging` reads `RUST_LOG` and falls back to `info` when unset.
+
+For rich node-level diagnostics across registration, provider lookup, cache hit/miss,
+and factory execution:
+
+```bash
+RUST_LOG=fluxdi=trace
+```
+
 ### Tracing Integration
 
 Enable the `tracing` feature for automatic logging:
@@ -999,6 +1025,7 @@ FluxDI exposes a small set of feature flags. See `fluxdi/Cargo.toml` for the aut
 - `debug` (enabled by default) — enables extra debug formatting in selected types and errors.
 - `thread-safe` (optional) — switches internal shared pointer and synchronization primitives to `Arc` + `RwLock` for concurrent access.
 - `lock-free` (optional) — uses `DashMap` for provider/instance stores in `thread-safe` mode.
+- `logging` (optional) — enables `try_init_logging()` / `init_logging()` helpers and `RUST_LOG` filter support.
 - `tracing` (optional) — enables tracing logs and spans during registration and resolution.
 - `opentelemetry` (optional) — adds OpenTelemetry bridge helpers in `fluxdi::observability`.
 - `metrics` (optional) — enables internal injector counters and `Injector::metrics_snapshot()`.
@@ -1013,7 +1040,7 @@ The crate default is currently `default = ["debug"]`. If you need multithreaded 
 
 ### Environment Variables
 
-When using the tracing feature, you can control logging levels:
+When using the `logging` (or `tracing`) feature, you can control log levels:
 
 ```bash
 # Set log level

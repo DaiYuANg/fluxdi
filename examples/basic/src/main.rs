@@ -114,6 +114,8 @@ impl Cache {
 // ============================================================
 
 fn main() {
+    fluxdi::init_logging();
+
     println!("╔════════════════════════════════════════════════════════╗");
     println!("║        FLUXDI - Dependency Injection Container           ║");
     println!("║                  Complex Example                       ║");

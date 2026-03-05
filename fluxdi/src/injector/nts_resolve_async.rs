@@ -22,18 +22,34 @@ impl Injector {
             let _guard = ResolveGuard::push(type_id)?;
 
             #[cfg(feature = "tracing")]
-            trace!("Resolving service asynchronously");
+            trace!(
+                type_name = type_name,
+                op = "resolve_async",
+                stage = "start",
+                "Starting async resolve flow"
+            );
 
             if let Some(instance) = self.get_instance::<T>() {
                 #[cfg(feature = "tracing")]
-                trace!("Resolve cache hit");
+                trace!(
+                    type_name = type_name,
+                    op = "resolve_async",
+                    cache = "hit",
+                    "Resolve cache hit"
+                );
                 #[cfg(feature = "metrics")]
                 self.inner.metrics.record_resolve_cache_hit();
                 return Ok(instance.value());
             }
 
             #[cfg(feature = "tracing")]
-            trace!("Resolve cache miss, creating instance asynchronously");
+            trace!(
+                type_name = type_name,
+                op = "resolve_async",
+                cache = "miss",
+                stage = "create_instance",
+                "Resolve cache miss, creating instance asynchronously"
+            );
             #[cfg(feature = "metrics")]
             self.inner.metrics.record_resolve_cache_miss();
 
@@ -42,7 +58,13 @@ impl Injector {
 
             if provider.scope == Scope::Transient {
                 #[cfg(feature = "tracing")]
-                trace!("Resolved transient service");
+                trace!(
+                    type_name = type_name,
+                    op = "resolve_async",
+                    scope = %provider.scope,
+                    cached = false,
+                    "Resolved transient service"
+                );
                 return Ok(instance.value());
             }
 
@@ -51,7 +73,13 @@ impl Injector {
             }
 
             #[cfg(feature = "tracing")]
-            trace!(scope = %provider.scope, "Resolved and cached service");
+            trace!(
+                type_name = type_name,
+                op = "resolve_async",
+                scope = %provider.scope,
+                cached = true,
+                "Resolved and cached service"
+            );
 
             Ok(instance.value())
         }
@@ -93,22 +121,45 @@ impl Injector {
             let _guard = ResolveGuard::push(type_id)?;
 
             #[cfg(feature = "tracing")]
-            trace!("Resolving service set asynchronously");
+            trace!(
+                type_name = type_name,
+                op = "resolve_all_async",
+                stage = "start",
+                "Resolving service set asynchronously"
+            );
 
             let providers = self.resolve_set_providers::<T>()?;
             let mut values = Vec::with_capacity(providers.len());
 
-            for provider in providers {
+            for (index, provider) in providers.into_iter().enumerate() {
                 let cache_target = self.cache_target_for_scope(provider.scope);
 
                 if let Some(target) = &cache_target {
                     if let Some(instance) = target.get_set_instance::<T>(&provider) {
+                        #[cfg(feature = "tracing")]
+                        trace!(
+                            type_name = type_name,
+                            op = "resolve_all_async",
+                            index = index,
+                            scope = %provider.scope,
+                            cache = "hit",
+                            "Resolved async set item from cache"
+                        );
                         #[cfg(feature = "metrics")]
                         self.inner.metrics.record_resolve_cache_hit();
                         values.push(instance.value());
                         continue;
                     }
 
+                    #[cfg(feature = "tracing")]
+                    trace!(
+                        type_name = type_name,
+                        op = "resolve_all_async",
+                        index = index,
+                        scope = %provider.scope,
+                        cache = "miss",
+                        "Async set item cache miss, creating instance"
+                    );
                     #[cfg(feature = "metrics")]
                     self.inner.metrics.record_resolve_cache_miss();
                 }
@@ -164,18 +215,37 @@ impl Injector {
             let _guard = ResolveGuard::push(type_id)?;
 
             #[cfg(feature = "tracing")]
-            trace!("Resolving named service asynchronously");
+            trace!(
+                type_name = type_name,
+                name = %name,
+                op = "resolve_named_async",
+                stage = "start",
+                "Resolving named service asynchronously"
+            );
 
             if let Some(instance) = self.get_instance_named::<T>(name) {
                 #[cfg(feature = "tracing")]
-                trace!("Named resolve cache hit");
+                trace!(
+                    type_name = type_name,
+                    name = %name,
+                    op = "resolve_named_async",
+                    cache = "hit",
+                    "Named resolve cache hit"
+                );
                 #[cfg(feature = "metrics")]
                 self.inner.metrics.record_resolve_cache_hit();
                 return Ok(instance.value());
             }
 
             #[cfg(feature = "tracing")]
-            trace!("Named resolve cache miss, creating instance asynchronously");
+            trace!(
+                type_name = type_name,
+                name = %name,
+                op = "resolve_named_async",
+                cache = "miss",
+                stage = "create_instance",
+                "Named resolve cache miss, creating instance asynchronously"
+            );
             #[cfg(feature = "metrics")]
             self.inner.metrics.record_resolve_cache_miss();
 
@@ -184,7 +254,14 @@ impl Injector {
 
             if provider.scope == Scope::Transient {
                 #[cfg(feature = "tracing")]
-                trace!("Resolved named transient service");
+                trace!(
+                    type_name = type_name,
+                    name = %name,
+                    op = "resolve_named_async",
+                    scope = %provider.scope,
+                    cached = false,
+                    "Resolved named transient service"
+                );
                 return Ok(instance.value());
             }
 
@@ -193,7 +270,14 @@ impl Injector {
             }
 
             #[cfg(feature = "tracing")]
-            trace!(scope = %provider.scope, "Resolved and cached named service");
+            trace!(
+                type_name = type_name,
+                name = %name,
+                op = "resolve_named_async",
+                scope = %provider.scope,
+                cached = true,
+                "Resolved and cached named service"
+            );
 
             Ok(instance.value())
         }

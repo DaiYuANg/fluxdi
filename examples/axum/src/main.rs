@@ -261,8 +261,7 @@ impl Module for WebApiModule {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
+    fluxdi::init_logging();
 
     let mut app = Application::new(WebApiModule);
     app.bootstrap().await

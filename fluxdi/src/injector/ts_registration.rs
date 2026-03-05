@@ -27,8 +27,19 @@ impl Injector {
 
         #[cfg(feature = "tracing")]
         match &result {
-            Ok(_) => debug!("Provider registered"),
-            Err(error) => debug!(error = %error, "Provider registration failed"),
+            Ok(_) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                op = "provide",
+                "Provider registered"
+            ),
+            Err(error) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                op = "provide",
+                error = %error,
+                "Provider registration failed"
+            ),
         }
 
         #[cfg(feature = "metrics")]
@@ -78,8 +89,19 @@ impl Injector {
 
         #[cfg(feature = "tracing")]
         match &result {
-            Ok(_) => debug!("Provider appended into set"),
-            Err(error) => debug!(error = %error, "Set provider registration failed"),
+            Ok(_) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                op = "provide_set",
+                "Provider appended into set"
+            ),
+            Err(error) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                op = "provide_set",
+                error = %error,
+                "Set provider registration failed"
+            ),
         }
 
         #[cfg(feature = "metrics")]
@@ -133,8 +155,21 @@ impl Injector {
 
         #[cfg(feature = "tracing")]
         match &result {
-            Ok(_) => debug!("Named provider registered"),
-            Err(error) => debug!(error = %error, "Named provider registration failed"),
+            Ok(_) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                name = %name,
+                op = "provide_named",
+                "Named provider registered"
+            ),
+            Err(error) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                name = %name,
+                op = "provide_named",
+                error = %error,
+                "Named provider registration failed"
+            ),
         }
 
         #[cfg(feature = "metrics")]
@@ -184,8 +219,19 @@ impl Injector {
 
         #[cfg(feature = "tracing")]
         match &result {
-            Ok(_) => debug!("Provider overridden"),
-            Err(error) => debug!(error = %error, "Provider override failed"),
+            Ok(_) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                op = "override_provider",
+                "Provider overridden"
+            ),
+            Err(error) => debug!(
+                type_name = type_name,
+                scope = %scope,
+                op = "override_provider",
+                error = %error,
+                "Provider override failed"
+            ),
         }
 
         #[cfg(feature = "metrics")]

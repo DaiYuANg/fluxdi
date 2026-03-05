@@ -44,6 +44,8 @@ impl Module for MixedModule {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    fluxdi::init_logging();
+
     let mut app = Application::new(MixedModule);
     app.bootstrap().await?;
 
