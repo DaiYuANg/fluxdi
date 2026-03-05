@@ -46,3 +46,21 @@ fn main() {
 cargo check --workspace
 cargo test --workspace
 ```
+
+## Optional Derive Macros
+
+```toml
+[dependencies]
+fluxdi = { version = "1.1.0", features = ["macros"] }
+```
+
+Then:
+
+```rust
+use fluxdi::{Injectable, Shared};
+
+#[derive(Injectable)]
+struct AppService {
+    dep: Shared<MyDependency>,
+}
+```

@@ -1046,12 +1046,22 @@ dependencies = [
  "axum 0.8.8",
  "criterion",
  "dashmap",
+ "fluxdi-macros",
  "futures",
  "opentelemetry",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "fluxdi-macros"
+version = "1.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -1218,6 +1228,13 @@ name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+
+[[package]]
+name = "graph-tooling-example"
+version = "1.1.0"
+dependencies = [
+ "fluxdi",
+]
 
 [[package]]
 name = "h2"
@@ -1800,6 +1817,20 @@ dependencies = [
 
 [[package]]
 name = "module-sync-example"
+version = "1.1.0"
+dependencies = [
+ "fluxdi",
+]
+
+[[package]]
+name = "multi-binding-pipeline-example"
+version = "1.1.0"
+dependencies = [
+ "fluxdi",
+]
+
+[[package]]
+name = "named-bindings-example"
 version = "1.1.0"
 dependencies = [
  "fluxdi",
@@ -2491,6 +2522,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "scoped-context-example"
+version = "1.1.0"
+dependencies = [
+ "fluxdi",
 ]
 
 [[package]]

@@ -5,13 +5,14 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://github.com/DaiYuANg/fluxdi/actions/workflows/CI.yml/badge.svg)](https://github.com/DaiYuANg/fluxdi/actions/workflows/CI.yml)
 
-A lightweight, type-safe dependency injection container for Rust applications. FluxDI provides ergonomic service registration (including trait-object bindings), transient and singleton lifetimes, semi-automatic dependency resolution, and circular dependency detection.
+A lightweight, type-safe dependency injection container for Rust applications. FluxDI provides ergonomic service registration (including trait-object bindings), transient/root/module/scoped lifetimes, semi-automatic dependency resolution, and circular dependency detection.
 
 ## ✨ Features
 
 - 🔒 **Type-Safe**: Leverages Rust's type system for compile-time safety
 - 🔄 **Transient Services**: Create new instances on each request
 - 🔗 **Singleton Services**: Shared instances with reference counting via `Arc` / `Rc`
+- 🧭 **Scoped Context**: Per-request/task instances via `create_scope()` + `Provider::scoped(...)`
 - 🔍 **Circular Detection**: Prevents infinite loops in dependency graphs
 - ❌ **Error Handling**: Comprehensive error types with detailed messages
 - 📊 **Optional Logging**: Tracing integration with feature gates
@@ -124,7 +125,7 @@ mdbook serve docs --open
 
 ## � Examples
 
-FluxDI includes ten comprehensive examples showcasing different use cases and patterns:
+FluxDI includes fourteen comprehensive examples showcasing different use cases and patterns:
 
 ### 1. Basic Example
 **Location:** `examples/basic/`
@@ -313,6 +314,62 @@ cd examples/module-mixed-sync-async
 cargo run
 ```
 
+### 11. Named Bindings Example
+**Location:** `examples/named-bindings/`
+
+Demonstrates multiple implementations for one trait via names:
+- Registers two `dyn CacheBackend` providers (`primary`, `fallback`)
+- Resolves each implementation with `resolve_named::<T>(name)`
+- Shows strategy/backends selection without changing consumer code
+
+**Run:**
+```bash
+cd examples/named-bindings
+cargo run
+```
+
+### 12. Multi-binding Pipeline Example
+**Location:** `examples/multi-binding-pipeline/`
+
+Demonstrates plugin/middleware pipeline composition:
+- Registers multiple `dyn Middleware` providers into one set
+- Resolves all with `resolve_all::<T>()`
+- Executes in deterministic registration order
+
+**Run:**
+```bash
+cd examples/multi-binding-pipeline
+cargo run
+```
+
+### 13. Graph Tooling Example
+**Location:** `examples/graph-tooling/`
+
+Demonstrates graph export and validation:
+- Declares dependencies with `with_dependency/with_set_dependency`
+- Runs `validate_graph` and prints issues (if any)
+- Exports DOT and Mermaid via `dependency_graph`
+
+**Run:**
+```bash
+cd examples/graph-tooling
+cargo run
+```
+
+### 14. Scoped Context Example
+**Location:** `examples/scoped-context/`
+
+Demonstrates request/task level scope isolation:
+- Registers scoped services with `Provider::scoped(...)`
+- Creates runtime scopes with `Injector::create_scope()`
+- Shows per-scope cache isolation and root cache sharing
+
+**Run:**
+```bash
+cd examples/scoped-context
+cargo run
+```
+
 ## �📖 Usage Guide
 
 ### Service Registration
@@ -368,6 +425,29 @@ let config2 = injector.resolve::<ConfigService>();
 // config1 and config2 point to the same instance
 ```
 
+#### Scoped Services
+Create one instance per runtime scope:
+
+```rust
+use fluxdi::{Injector, Provider, Shared};
+
+#[derive(Debug)]
+struct RequestContext {
+    request_id: u64,
+}
+
+let injector = Injector::root();
+injector.provide::<RequestContext>(Provider::scoped(|_| {
+    Shared::new(RequestContext { request_id: 1 })
+}));
+
+let scope = injector.create_scope();
+let ctx1 = scope.resolve::<RequestContext>();
+let ctx2 = scope.resolve::<RequestContext>();
+
+assert!(Shared::ptr_eq(&ctx1, &ctx2));
+```
+
 ### Error Handling
 
 FluxDI provides both panicking and non-panicking variants:
@@ -388,6 +468,152 @@ match injector.try_resolve::<String>() {
 match injector.try_resolve::<u32>() {
     Ok(_) => unreachable!(),
     Err(e) => println!("Expected error: {}", e),
+}
+```
+
+### Provider Override (Testing)
+
+You can replace existing providers for test and integration scenarios:
+
+```rust
+use fluxdi::{Injector, Provider, Shared};
+
+let injector = Injector::root();
+injector.provide::<String>(Provider::root(|_| Shared::new("real".to_string())));
+
+injector
+    .try_override_provider::<String>(Provider::root(|_| Shared::new("mock".to_string())))
+    .expect("override should succeed");
+
+assert_eq!(injector.resolve::<String>().as_str(), "mock");
+```
+
+### Named Bindings
+
+Register and resolve multiple implementations for the same type/trait:
+
+```rust
+use fluxdi::{Injector, Provider, Shared};
+
+trait Cache: Send + Sync {
+    fn id(&self) -> &'static str;
+}
+
+struct Redis;
+impl Cache for Redis {
+    fn id(&self) -> &'static str { "redis" }
+}
+
+struct Memory;
+impl Cache for Memory {
+    fn id(&self) -> &'static str { "memory" }
+}
+
+let injector = Injector::root();
+
+injector.provide_named::<dyn Cache>(
+    "primary",
+    Provider::root(|_| Shared::new(Redis) as Shared<dyn Cache>),
+);
+injector.provide_named::<dyn Cache>(
+    "fallback",
+    Provider::root(|_| Shared::new(Memory) as Shared<dyn Cache>),
+);
+
+let primary = injector.resolve_named::<dyn Cache>("primary");
+let fallback = injector.resolve_named::<dyn Cache>("fallback");
+
+assert_eq!(primary.id(), "redis");
+assert_eq!(fallback.id(), "memory");
+```
+
+### Multi-binding
+
+Register multiple implementations in one set and resolve them together:
+
+```rust
+use fluxdi::{Injector, Provider, Shared};
+
+trait Middleware: Send + Sync {
+    fn name(&self) -> &'static str;
+}
+
+struct Trim;
+impl Middleware for Trim {
+    fn name(&self) -> &'static str { "trim" }
+}
+
+struct Uppercase;
+impl Middleware for Uppercase {
+    fn name(&self) -> &'static str { "uppercase" }
+}
+
+let injector = Injector::root();
+injector.provide_into_set::<dyn Middleware>(
+    Provider::singleton(|_| Shared::new(Trim) as Shared<dyn Middleware>),
+);
+injector.provide_into_set::<dyn Middleware>(
+    Provider::singleton(|_| Shared::new(Uppercase) as Shared<dyn Middleware>),
+);
+
+let middlewares = injector.resolve_all::<dyn Middleware>();
+let order: Vec<&str> = middlewares.iter().map(|m| m.name()).collect();
+assert_eq!(order, vec!["trim", "uppercase"]);
+```
+
+Ordering strategy:
+
+- Parent injector bindings come first.
+- Child injector bindings come after parent bindings.
+- Within each injector, registration order is preserved.
+
+### Graph Tooling
+
+You can export dependency graphs and validate missing dependencies/cycles:
+
+```rust
+use fluxdi::{Injector, Provider, Shared};
+
+struct A;
+struct B;
+
+let injector = Injector::root();
+injector.provide::<A>(
+    Provider::singleton(|_| Shared::new(A)).with_dependency::<B>(),
+);
+injector.provide::<B>(Provider::singleton(|_| Shared::new(B)));
+
+let report = injector.validate_graph();
+assert!(report.is_valid());
+
+let graph = injector.dependency_graph();
+let dot = graph.to_dot();
+let mermaid = graph.to_mermaid();
+assert!(dot.contains("digraph fluxdi"));
+assert!(mermaid.contains("graph TD"));
+```
+
+CI-friendly guard:
+
+```rust
+injector.try_validate_graph()?;
+```
+
+### Derive Macro (Injectable)
+
+Enable derive support:
+
+```toml
+[dependencies]
+fluxdi = { path = "../fluxdi", features = ["macros"] }
+```
+
+```rust
+use fluxdi::{Injectable, Shared};
+
+#[derive(Injectable)]
+struct UserService {
+    repo: Shared<MyRepo>,
 }
 ```
 
@@ -739,12 +965,24 @@ fluxdi/
 │   ├── module-mixed-sync-async/ # Sync and async providers in one module
 │   │   └── src/
 │   │       └── main.rs   # mixed resolve + try_resolve_async usage
+│   ├── multi-binding-pipeline/ # Ordered plugin/middleware pipeline with resolve_all
+│   │   └── src/
+│   │       └── main.rs   # provide_into_set + resolve_all usage
+│   ├── graph-tooling/    # Dependency graph export + validation example
+│   │   └── src/
+│   │       └── main.rs   # dependency_graph + validate_graph
+│   ├── named-bindings/   # Named/strategy bindings for one trait
+│   │   └── src/
+│   │       └── main.rs   # provide_named + resolve_named example
 │   ├── seaorm-sqlite/    # SeaORM + SQLite module lifecycle example
 │   │   └── src/
 │   │       └── main.rs   # on_start connectivity check (SELECT 1)
 │   ├── dual-http-random-port/ # Two HTTP servers with random 30000-65535 ports
 │   │   └── src/
 │   │       └── main.rs   # concurrent startup in on_start + abort in on_stop
+│   ├── scoped-context/   # Runtime scoped injector example
+│   │   └── src/
+│   │       └── main.rs   # create_scope + Provider::scoped usage
 │   └── axum/             # REST API with Axum web framework
 │       ├── src/
 │       │   └── main.rs   # HTTP handlers with DI integration
@@ -769,6 +1007,7 @@ FluxDI exposes a small set of feature flags. See `fluxdi/Cargo.toml` for the aut
 - `axum` (optional) — enables Axum integration helpers and extractors (and enables `thread-safe`).
 - `async-factory` (optional) — enables `Provider::*_async` and `Injector::*_resolve_async` APIs.
 - `resource-limit-async` (optional) — uses Tokio semaphore for non-blocking async waits in resource limits.
+- `macros` (optional) — enables `#[derive(Injectable)]` via `fluxdi-macros`.
 
 The crate default is currently `default = ["debug"]`. If you need multithreaded use, enable `thread-safe`.
 
@@ -823,6 +1062,10 @@ cargo clippy -- -D warnings
 - [x] **Lazy Initialization**: Singleton instances are created on first `resolve`
 - [x] **Service Metrics**: Internal counters + timing totals via `metrics_snapshot`
 - [x] **Resource Limits**: Per-provider concurrent creation limits with `Limits` + `Policy`
+- [x] **Named Bindings**: Resolve multiple implementations by key with `provide_named/resolve_named`
+- [x] **Multi-binding**: Resolve ordered plugin sets with `provide_into_set/resolve_all`
+- [x] **Graph Tooling**: Export dependency graph and validate missing/cyclic dependencies
+- [x] **Scoped Context**: `create_scope` + `Provider::scoped` runtime scope isolation
 
 ### 📦 Ecosystem Integration
 - [x] **Async Factory Support**: Async/await provider factories via `Provider::*_async` + `Injector::*_resolve_async`
@@ -838,8 +1081,8 @@ cargo clippy -- -D warnings
 - [x] **Web Framework Integration**: Explored with Axum + Actix-web
 
 ### �🛠️ Developer Experience
-- [ ] **Derive Macros**: Auto-generate factory functions from service structs (`#[injectable]`)
-- [ ] **Error Suggestions**: Better error messages with fix suggestions
+- [x] **Derive Macros**: Auto-generate factory functions from service structs (`#[derive(Injectable)]`)
+- [x] **Error Suggestions**: Better error messages with fix suggestions
 
 ### 📊 Observability
 - [x] **OpenTelemetry**: Optional tracing bridge helpers via `opentelemetry_layer` / `try_init_opentelemetry`

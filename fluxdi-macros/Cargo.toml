@@ -1,0 +1,17 @@
+[package]
+name = "fluxdi-macros"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+authors.workspace = true
+description = "Procedural macros for FluxDI"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

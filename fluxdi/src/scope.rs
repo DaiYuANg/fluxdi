@@ -11,6 +11,10 @@ use tracing::debug;
 /// * `Module` - Module-level singleton. The instance is created once per module
 ///   and shared among all consumers within that specific module.
 ///
+/// * `Scoped` - Scope-level singleton. The instance is created once per runtime
+///   scope (created with [`Injector::create_scope`](crate::Injector::create_scope))
+///   and shared inside that scope only.
+///
 /// * `Transient` - Transient instance. A new instance is created each time
 ///   the service is requested from the dependency injection container.
 ///
@@ -30,6 +34,7 @@ use tracing::debug;
 pub enum Scope {
     Root,
     Module,
+    Scoped,
     Transient,
 }
 
@@ -38,6 +43,7 @@ impl std::fmt::Display for Scope {
         match self {
             Scope::Root => write!(f, "Root"),
             Scope::Module => write!(f, "Module"),
+            Scope::Scoped => write!(f, "Scoped"),
             Scope::Transient => write!(f, "Transient"),
         }
     }
@@ -46,13 +52,13 @@ impl std::fmt::Display for Scope {
 impl Scope {
     /// Checks if this scope represents a singleton service.
     ///
-    /// Returns `true` for `Root` and `Module` scopes, which create a single shared
-    /// instance. Returns `false` for `Transient` scope, which creates a new
-    /// instance on each request.
+    /// Returns `true` for `Root`, `Module`, and `Scoped` scopes, which create
+    /// a single shared instance in their respective cache domain. Returns `false`
+    /// for `Transient` scope, which creates a new instance on each request.
     ///
     /// # Returns
     ///
-    /// * `true` - If the scope is `Root` or `Module` (singleton)
+    /// * `true` - If the scope is `Root`, `Module`, or `Scoped` (singleton)
     /// * `false` - If the scope is `Transient` (not singleton)
     ///
     /// # Examples
@@ -62,10 +68,11 @@ impl Scope {
     ///
     /// assert!(Scope::Root.is_singleton());
     /// assert!(Scope::Module.is_singleton());
+    /// assert!(Scope::Scoped.is_singleton());
     /// assert!(!Scope::Transient.is_singleton());
     /// ```
     pub fn is_singleton(self) -> bool {
-        let result = matches!(self, Scope::Root | Scope::Module);
+        let result = matches!(self, Scope::Root | Scope::Module | Scope::Scoped);
 
         #[cfg(feature = "tracing")]
         debug!(
@@ -103,6 +110,12 @@ mod tests {
     }
 
     #[test]
+    fn test_scoped_is_singleton() {
+        let scope = Scope::Scoped;
+        assert!(scope.is_singleton(), "Scope::Scoped should be singleton");
+    }
+
+    #[test]
     fn test_scope_is_copy() {
         let scope1 = Scope::Root;
         let scope2 = scope1;
@@ -122,12 +135,12 @@ mod tests {
     #[test]
     fn test_all_scopes_are_covered() {
         // Test that all enum variants have been considered
-        let scopes = [Scope::Root, Scope::Module, Scope::Transient];
+        let scopes = [Scope::Root, Scope::Module, Scope::Scoped, Scope::Transient];
 
         let singleton_count = scopes.iter().filter(|s| s.is_singleton()).count();
         assert_eq!(
-            singleton_count, 2,
-            "There should be exactly 2 singleton scopes"
+            singleton_count, 3,
+            "There should be exactly 3 singleton scopes"
         );
     }
 }

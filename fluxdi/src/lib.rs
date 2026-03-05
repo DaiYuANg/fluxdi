@@ -4,6 +4,7 @@ pub mod application;
 #[cfg(feature = "axum")]
 pub mod axum;
 pub mod error;
+pub mod graph;
 pub mod injector;
 pub mod instance;
 pub mod module;
@@ -17,6 +18,9 @@ pub use application::*;
 #[cfg(feature = "axum")]
 pub use axum::*;
 pub use error::*;
+#[cfg(feature = "macros")]
+pub use fluxdi_macros::Injectable;
+pub use graph::*;
 pub use injector::*;
 pub use instance::*;
 pub use module::*;
