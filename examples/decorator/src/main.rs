@@ -63,10 +63,10 @@ struct CachingCalculator {
 
 impl Calculator for CachingCalculator {
     fn compute(&self, x: u64) -> u64 {
-        if let Ok(cache) = self.cache.lock() {
-            if let Some(&v) = cache.get(&x) {
-                return v;
-            }
+        if let Ok(cache) = self.cache.lock()
+            && let Some(&v) = cache.get(&x)
+        {
+            return v;
         }
         let result = self.inner.compute(x);
         if let Ok(mut cache) = self.cache.lock() {

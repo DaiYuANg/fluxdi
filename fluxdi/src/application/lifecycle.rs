@@ -88,12 +88,7 @@ impl Application {
         #[cfg(feature = "lifecycle")]
         {
             if let Some(duration) = opts.timeout {
-                return match tokio::time::timeout(
-                    duration,
-                    self.bootstrap_with_opts(opts),
-                )
-                .await
-                {
+                return match tokio::time::timeout(duration, self.bootstrap_with_opts(opts)).await {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(e)) => Err(e),
                     Err(_) => Err(Error::new(
@@ -132,11 +127,7 @@ impl Application {
 
         while let Some(loaded) = self.started_modules.pop() {
             let module_name = std::any::type_name_of_val(&*loaded.module);
-            if let Err(err) = loaded
-                .module
-                .on_stop(loaded.injector.clone())
-                .await
-            {
+            if let Err(err) = loaded.module.on_stop(loaded.injector.clone()).await {
                 shutdown_errors.push(Error::module_lifecycle_failed(
                     module_name,
                     "on_stop",
@@ -183,7 +174,10 @@ impl Application {
         use std::time::Instant;
 
         #[cfg(feature = "tracing")]
-        info!("Starting async application shutdown process (timeout: {:?})", duration);
+        info!(
+            "Starting async application shutdown process (timeout: {:?})",
+            duration
+        );
 
         let deadline = Instant::now() + duration;
         let mut shutdown_errors = Vec::new();

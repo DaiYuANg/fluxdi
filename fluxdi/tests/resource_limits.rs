@@ -53,11 +53,7 @@ fn deny_policy_rejects_when_concurrency_limit_is_reached() {
 
     let errors = errors.lock().unwrap();
     assert!(!successes.is_empty());
-    assert!(
-        errors
-            .iter()
-            .any(|kind| *kind == ErrorKind::ResourceLimitExceeded)
-    );
+    assert!(errors.contains(&ErrorKind::ResourceLimitExceeded));
 }
 
 #[cfg(feature = "thread-safe")]

@@ -29,12 +29,12 @@ use std::{cell::RefCell, rc::Rc};
 /// Type alias for shared ownership of data.
 ///
 /// When the `thread-safe` feature is enabled, this is [`Arc<T>`] (thread-safe reference counting).
-/// When disabled, this is [`Rc<T>`] (single-threaded reference counting).
+/// When disabled, this is [`std::rc::Rc<T>`] (single-threaded reference counting).
 ///
 /// # Thread Safety
 ///
 /// - **With `thread-safe` feature**: `Arc<T>` allows sharing data across threads safely.
-/// - **Without `thread-safe` feature**: `Rc<T>` is more performant but not thread-safe.
+/// - **Without `thread-safe` feature**: `std::rc::Rc<T>` is more performant but not thread-safe.
 ///
 /// # Examples
 ///
@@ -52,12 +52,12 @@ pub type Shared<T> = Rc<T>;
 /// Type alias for interior mutability with runtime borrow checking.
 ///
 /// When the `thread-safe` feature is enabled, this is [`RwLock<T>`] (thread-safe read-write lock).
-/// When disabled, this is [`RefCell<T>`] (single-threaded interior mutability).
+/// When disabled, this is [`std::cell::RefCell<T>`] (single-threaded interior mutability).
 ///
 /// # Thread Safety
 ///
 /// - **With `thread-safe` feature**: `RwLock<T>` provides safe concurrent access with blocking.
-/// - **Without `thread-safe` feature**: `RefCell<T>` uses runtime borrow checking without locks.
+/// - **Without `thread-safe` feature**: `std::cell::RefCell<T>` uses runtime borrow checking without locks.
 ///
 /// # Examples
 ///

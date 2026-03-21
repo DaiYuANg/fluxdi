@@ -3,7 +3,7 @@
 //! This example mirrors `examples/basic` using `#[derive(Injectable)]` instead
 //! of manual provider closures. Both approaches produce equivalent behavior.
 
-use fluxdi::{Injector, Injectable, Provider, Shared};
+use fluxdi::{Injectable, Injector, Provider, Shared};
 
 // ============================================================
 // SERVICE TYPES (same as basic example)
@@ -108,7 +108,7 @@ fn main() {
 
     // AppService: uses #[derive(Injectable)] - one line instead of manual closure
     injector
-        .try_provide::<AppService>(Provider::root(|inj| AppService::from_injector(inj)))
+        .try_provide::<AppService>(Provider::root(AppService::from_injector))
         .expect("register AppService");
 
     let app = injector.resolve::<AppService>();

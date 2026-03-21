@@ -110,10 +110,7 @@ impl Application {
                     if let Err(err) = module.on_start(module_injector.clone()).await {
                         // Rollback: call on_stop on already-started modules (reverse order)
                         while let Some(loaded_mod) = loaded.pop() {
-                            let _ = loaded_mod
-                                .module
-                                .on_stop(loaded_mod.injector.clone())
-                                .await;
+                            let _ = loaded_mod.module.on_stop(loaded_mod.injector.clone()).await;
                         }
                         return Err(Error::module_lifecycle_failed(
                             module_name,
@@ -207,7 +204,7 @@ impl Application {
                 }
                 Err(err) => {
                     bootstrap_errors.push(Error::module_lifecycle_failed(
-                        &module_name,
+                        module_name,
                         "on_start",
                         &err.to_string(),
                     ));
@@ -220,10 +217,7 @@ impl Application {
         } else {
             // Rollback: call on_stop on successfully-started modules (reverse order)
             while let Some(loaded_mod) = loaded.pop() {
-                let _ = loaded_mod
-                    .module
-                    .on_stop(loaded_mod.injector.clone())
-                    .await;
+                let _ = loaded_mod.module.on_stop(loaded_mod.injector.clone()).await;
             }
             Err(Error::bootstrap_aggregate(bootstrap_errors))
         }

@@ -98,8 +98,7 @@ fn bench_provider_registration(c: &mut Criterion) {
 fn bench_resolve_with_decorator(c: &mut Criterion) {
     let injector = Injector::root();
     injector.provide::<CachedService>(
-        Provider::root(|_| Shared::new(CachedService(42)))
-            .with_decorator(|inner| inner),
+        Provider::root(|_| Shared::new(CachedService(42))).with_decorator(|inner| inner),
     );
     let _ = injector.resolve::<CachedService>();
 
