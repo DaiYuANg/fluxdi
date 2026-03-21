@@ -194,6 +194,7 @@ impl Injector {
             .get(&type_id)
             .cloned()
             .unwrap_or_default();
+        #[cfg_attr(not(feature = "tracing"), allow(unused_variables))]
         let local_count = local.len();
 
         for any_provider in local {

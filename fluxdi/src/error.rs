@@ -203,6 +203,48 @@ impl Error {
             ),
         )
     }
+
+    /// Bootstrap failed with multiple module errors (aggregated).
+    ///
+    /// Used when `on_start` fails for one or more modules during bootstrap,
+    /// e.g. when using `parallel_start`.
+    pub fn bootstrap_aggregate(errors: Vec<Error>) -> Self {
+        if errors.len() == 1 {
+            return errors.into_iter().next().unwrap();
+        }
+        let message = format!(
+            "Bootstrap failed: {} module(s) reported errors:\n{}",
+            errors.len(),
+            errors
+                .iter()
+                .enumerate()
+                .map(|(i, e)| format!("  {}) {}", i + 1, e.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        Self::new(ErrorKind::ModuleLifecycleFailed, message)
+    }
+
+    /// Shutdown failed with multiple module errors (aggregated).
+    ///
+    /// Used when `on_stop` fails for one or more modules during shutdown.
+    /// The returned error lists all failures for diagnostics.
+    pub fn shutdown_aggregate(errors: Vec<Error>) -> Self {
+        if errors.len() == 1 {
+            return errors.into_iter().next().unwrap();
+        }
+        let message = format!(
+            "Shutdown failed: {} module(s) reported errors:\n{}",
+            errors.len(),
+            errors
+                .iter()
+                .enumerate()
+                .map(|(i, e)| format!("  {}) {}", i + 1, e.message))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        Self::new(ErrorKind::ModuleLifecycleFailed, message)
+    }
 }
 
 impl fmt::Display for Error {

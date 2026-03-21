@@ -12,7 +12,7 @@ Use macros via `fluxdi`:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.2.0", features = ["macros"] }
+fluxdi = { version = "1.2.1", features = ["macros"] }
 ```
 
 Then import from `fluxdi`:

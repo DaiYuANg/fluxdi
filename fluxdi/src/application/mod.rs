@@ -121,6 +121,9 @@ mod accessors;
 mod constructors;
 mod lifecycle;
 mod module_loading;
+pub mod options;
+
+pub use options::{BootstrapOptions, ShutdownOptions};
 
 #[cfg(test)]
 mod tests;

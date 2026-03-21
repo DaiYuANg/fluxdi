@@ -1,6 +1,7 @@
 use super::*;
 use crate::scope::Scope;
 
+mod decorator;
 mod factories_and_threading;
 mod scopes;
 

@@ -1,15 +1,16 @@
 # Derive Macros
 
-FluxDI provides `#[derive(Injectable)]` through the `macros` feature.
+FluxDI provides `#[derive(Injectable)]` through the `macros` feature to reduce
+boilerplate when registering services with `Shared<T>` dependencies.
 
 Enable:
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.2.0", features = ["macros"] }
+fluxdi = { version = "1.2.1", features = ["macros"] }
 ```
 
-Example:
+## Basic Example
 
 ```rust
 use fluxdi::{Injectable, Injector, Provider, Shared};
@@ -32,13 +33,50 @@ let service = injector.resolve::<AppService>();
 assert_eq!(service.clock.tick, 42);
 ```
 
+## Manual vs Macro Parity
+
+`#[derive(Injectable)]` generates a `from_injector` constructor that resolves
+each `Shared<T>` field from the injector. The following are equivalent:
+
+**Manual provider:**
+
+```rust
+injector.provide::<UserService>(Provider::root(|inj| {
+    let repo = inj.resolve::<UserRepository>();
+    Shared::new(UserService { repo })
+}));
+```
+
+**Macro-based provider (same behavior):**
+
+```rust
+#[derive(Injectable)]
+struct UserService {
+    repo: Shared<UserRepository>,
+}
+
+injector.provide::<UserService>(Provider::root(|inj| UserService::from_injector(inj)));
+```
+
+Use the macro when your service struct has only `Shared<T>` dependencies and
+you want to avoid writing the resolution logic by hand. Use manual providers
+when you need custom construction (e.g., config parameters, fallible init, or
+non-`Shared` fields).
+
+## Generated API
+
 `Injectable` generates:
 
 - `impl YourType { pub fn from_injector(injector: &fluxdi::Injector) -> fluxdi::Shared<Self> }`
-- One `injector.resolve::<T>()` call per field `Shared<T>`.
+- One `injector.resolve::<T>()` call per field typed as `Shared<T>`.
 
-Current derive constraints:
+## Constraints
 
 - Only named-field structs are supported.
 - Generic structs are not supported.
 - Every injected field must be typed exactly as `Shared<T>`.
+
+## Runnable Example
+
+See `examples/injectable-macro` for a full demo that mirrors `examples/basic`
+using the derive macro.

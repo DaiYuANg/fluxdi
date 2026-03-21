@@ -1,4 +1,7 @@
+#[cfg(feature = "thread-safe")]
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+#[cfg(not(feature = "thread-safe"))]
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use fluxdi::{Injector, Provider, Shared};
 
 #[derive(Debug)]
@@ -7,6 +10,7 @@ struct CachedService(u64);
 #[derive(Debug)]
 struct TransientService(u64);
 
+#[cfg(feature = "thread-safe")]
 #[derive(Debug)]
 struct ConcurrentService(u64);
 
@@ -91,11 +95,54 @@ fn bench_provider_registration(c: &mut Criterion) {
     });
 }
 
+fn bench_resolve_with_decorator(c: &mut Criterion) {
+    let injector = Injector::root();
+    injector.provide::<CachedService>(
+        Provider::root(|_| Shared::new(CachedService(42)))
+            .with_decorator(|inner| inner),
+    );
+    let _ = injector.resolve::<CachedService>();
+
+    c.bench_function("resolve_with_noop_decorator", |b| {
+        b.iter(|| {
+            let value = injector.resolve::<CachedService>();
+            black_box(value.0)
+        });
+    });
+}
+
+fn bench_resolve_decorator_baseline(c: &mut Criterion) {
+    let mut group = c.benchmark_group("resolve_decorator");
+    group.bench_function("without_decorator", |b| {
+        let injector = Injector::root();
+        injector.provide::<CachedService>(Provider::root(|_| Shared::new(CachedService(42))));
+        let _ = injector.resolve::<CachedService>();
+        b.iter(|| {
+            let value = injector.resolve::<CachedService>();
+            black_box(value.0)
+        });
+    });
+    group.bench_function("with_noop_decorator", |b| {
+        let injector = Injector::root();
+        injector.provide::<CachedService>(
+            Provider::root(|_| Shared::new(CachedService(42))).with_decorator(|inner| inner),
+        );
+        let _ = injector.resolve::<CachedService>();
+        b.iter(|| {
+            let value = injector.resolve::<CachedService>();
+            black_box(value.0)
+        });
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_cached_resolve,
     bench_transient_resolve,
     bench_concurrent_resolve,
-    bench_provider_registration
+    bench_provider_registration,
+    bench_resolve_with_decorator,
+    bench_resolve_decorator_baseline
 );
 criterion_main!(benches);

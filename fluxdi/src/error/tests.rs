@@ -108,3 +108,43 @@ fn error_kind_equality() {
     assert!(err1.kind == err2.kind);
     assert_ne!(err1.message, err2.message);
 }
+
+#[test]
+fn shutdown_aggregate_error() {
+    let e1 = Error::module_lifecycle_failed("A", "on_stop", "detail1");
+    let e2 = Error::module_lifecycle_failed("B", "on_stop", "detail2");
+    let err = Error::shutdown_aggregate(vec![e1, e2]);
+    assert_eq!(err.kind, ErrorKind::ModuleLifecycleFailed);
+    assert!(err.message.contains("2 module(s) reported errors"));
+    assert!(err.message.contains("detail1"));
+    assert!(err.message.contains("detail2"));
+}
+
+#[test]
+fn shutdown_aggregate_single_error_returns_unchanged() {
+    let e = Error::module_lifecycle_failed("A", "on_stop", "detail");
+    let err = Error::shutdown_aggregate(vec![e]);
+    assert_eq!(err.kind, ErrorKind::ModuleLifecycleFailed);
+    assert!(err.message.contains("A"));
+    assert!(err.message.contains("detail"));
+}
+
+#[test]
+fn bootstrap_aggregate_error() {
+    let e1 = Error::module_lifecycle_failed("A", "on_start", "detail1");
+    let e2 = Error::module_lifecycle_failed("B", "on_start", "detail2");
+    let err = Error::bootstrap_aggregate(vec![e1, e2]);
+    assert_eq!(err.kind, ErrorKind::ModuleLifecycleFailed);
+    assert!(err.message.contains("2 module(s) reported errors"));
+    assert!(err.message.contains("detail1"));
+    assert!(err.message.contains("detail2"));
+}
+
+#[test]
+fn bootstrap_aggregate_single_error_returns_unchanged() {
+    let e = Error::module_lifecycle_failed("A", "on_start", "detail");
+    let err = Error::bootstrap_aggregate(vec![e]);
+    assert_eq!(err.kind, ErrorKind::ModuleLifecycleFailed);
+    assert!(err.message.contains("A"));
+    assert!(err.message.contains("detail"));
+}

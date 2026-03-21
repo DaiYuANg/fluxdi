@@ -3,6 +3,8 @@
 Current workspace examples:
 
 - `examples/basic`
+- `examples/injectable-macro` (macro vs manual parity)
+- `examples/decorator` (Provider::with_decorator for logging/caching)
 - `examples/complex`
 - `examples/async-factory`
 - `examples/module-sync`
@@ -26,7 +28,10 @@ Scoped web request demos:
 Run one example:
 
 ```bash
+cargo run -p basic
 cargo run -p graph-tooling-example
+cargo run -p injectable-macro-example
+cargo run -p decorator-example
 ```
 
 Examples initialize FluxDI logging by default. For verbose DI-node diagnostics:

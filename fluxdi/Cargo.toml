@@ -20,7 +20,8 @@ tracing-opentelemetry = { version = "0.30.0", optional = true }
 tracing-subscriber = { version = "0.3.19", optional = true, features = ["env-filter", "fmt"] }
 dashmap = { version = "6.1.0", optional = true }
 tokio = { version = "1.43.0", features = ["sync", "time", "rt", "rt-multi-thread"], optional = true }
-fluxdi-macros = { path = "../fluxdi-macros", optional = true, version = "1.2.1" }
+fluxdi-macros = { path = "../fluxdi-macros", optional = true, version = "1.2.2" }
+futures = "0.3.31"
 
 [features]
 default = ["debug"]
@@ -43,9 +44,11 @@ opentelemetry = [
 ]
 debug = []
 macros = ["dep:fluxdi-macros"]
+lifecycle = ["dep:tokio"]
 
 [dev-dependencies]
 futures = "0.3.31"
+tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros", "time"] }
 tracing-subscriber = "0.3.19"
 criterion = { version = "0.5.1", features = ["html_reports"] }
 

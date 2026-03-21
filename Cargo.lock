@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "actix"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "actix-web",
  "fluxdi",
@@ -287,7 +287,7 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "async-factory-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
  "tokio",
@@ -382,7 +382,7 @@ dependencies = [
 
 [[package]]
 name = "axum"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "axum 0.8.8",
  "complex",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "axum-lifecycle"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "axum 0.8.8",
  "fluxdi",
@@ -438,7 +438,7 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "basic"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
 ]
@@ -676,7 +676,7 @@ checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
 
 [[package]]
 name = "complex"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "async-trait",
  "fluxdi",
@@ -861,6 +861,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "decorator-example"
+version = "1.2.2"
+dependencies = [
+ "fluxdi",
+]
+
+[[package]]
 name = "der"
 version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -935,7 +942,7 @@ checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "dual-http-random-port-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "axum 0.8.8",
  "fluxdi",
@@ -1040,7 +1047,7 @@ dependencies = [
 
 [[package]]
 name = "fluxdi"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "actix-web",
  "axum 0.8.8",
@@ -1057,7 +1064,7 @@ dependencies = [
 
 [[package]]
 name = "fluxdi-macros"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1231,7 +1238,7 @@ checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "graph-tooling-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
 ]
@@ -1616,6 +1623,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "injectable-macro-example"
+version = "1.2.2"
+dependencies = [
+ "fluxdi",
+]
+
+[[package]]
 name = "is-terminal"
 version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1810,7 +1824,7 @@ dependencies = [
 
 [[package]]
 name = "module-async-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
  "tokio",
@@ -1818,7 +1832,7 @@ dependencies = [
 
 [[package]]
 name = "module-mixed-sync-async-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
  "tokio",
@@ -1826,21 +1840,21 @@ dependencies = [
 
 [[package]]
 name = "module-sync-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
 ]
 
 [[package]]
 name = "multi-binding-pipeline-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
 ]
 
 [[package]]
 name = "named-bindings-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
 ]
@@ -2535,7 +2549,7 @@ dependencies = [
 
 [[package]]
 name = "scoped-context-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
 ]
@@ -2643,7 +2657,7 @@ checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
 
 [[package]]
 name = "seaorm-sqlite-example"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "fluxdi",
  "sea-orm",

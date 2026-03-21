@@ -17,16 +17,7 @@ impl Injector {
         let resolve_started = std::time::Instant::now();
 
         let result = (|| {
-            let _guard = ResolveGuard::push(type_id)?;
-
-            #[cfg(feature = "tracing")]
-            trace!(
-                type_name = type_name,
-                op = "resolve_sync",
-                stage = "start",
-                "Starting resolve flow"
-            );
-
+            // Fast path: cache hit skips ResolveGuard (no recursion, no circular dep possible)
             if let Some(instance) = self.get_instance::<T>() {
                 #[cfg(feature = "tracing")]
                 trace!(
@@ -39,6 +30,8 @@ impl Injector {
                 self.inner.metrics.record_resolve_cache_hit();
                 return Ok(instance.value());
             }
+
+            let _guard = ResolveGuard::push(type_id)?;
 
             #[cfg(feature = "tracing")]
             trace!(
@@ -127,6 +120,7 @@ impl Injector {
             let providers = self.resolve_set_providers::<T>()?;
             let mut values = Vec::with_capacity(providers.len());
 
+            #[cfg_attr(not(feature = "tracing"), allow(unused_variables))]
             for (index, provider) in providers.into_iter().enumerate() {
                 let cache_target = self.cache_target_for_scope(provider.scope);
 

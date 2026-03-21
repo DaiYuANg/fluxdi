@@ -18,7 +18,7 @@ This document defines an execution-focused roadmap for FluxDI after the rebrand.
 
 ### Epic A - Derive Macros (`fluxdi-macros`)
 
-Status: [~] In progress
+Status: [x] Completed
 
 Target outcomes:
 
@@ -31,7 +31,7 @@ Planned tasks:
 - [x] Create `fluxdi-macros` crate in workspace.
 - [x] Implement `#[derive(Injectable)]` for struct constructors.
 - [x] Generate compile errors with actionable messages.
-- [ ] Add docs + examples for macro and manual provider parity.
+- [x] Add docs + examples for macro and manual provider parity.
 
 Acceptance criteria:
 
@@ -166,7 +166,7 @@ Acceptance criteria:
 
 ### Epic H - Lifecycle Manager Extensions
 
-Status: [ ] Not started
+Status: [x] Completed
 
 Target outcomes:
 
@@ -174,10 +174,14 @@ Target outcomes:
 
 Planned tasks:
 
-- [ ] Add bootstrap options (`timeout`, `parallel_start`, rollback policy).
-- [ ] Add structured lifecycle error aggregation.
-- [ ] Add optional graceful stop timeout behavior.
-- [ ] Document recommended patterns for long-running servers.
+- [x] Add bootstrap options (`timeout`) via `BootstrapOptions` and `bootstrap_with_options()`.
+- [x] Add shutdown options (`timeout`) via `ShutdownOptions` and `shutdown_with_options()`.
+- [x] Add structured lifecycle error aggregation for shutdown (collect all module failures).
+- [x] Document recommended patterns for long-running servers.
+- [x] Add `parallel_start` option for concurrent module `on_start` execution.
+- [x] Add bootstrap lifecycle error aggregation (`Error::bootstrap_aggregate`).
+- [x] Add rollback policy (on_start failure triggers on_stop for already-started modules).
+- [x] Add optional graceful stop timeout behavior (attempt all modules within deadline).
 
 Acceptance criteria:
 
@@ -186,7 +190,7 @@ Acceptance criteria:
 
 ### Epic I - Decorator/Interceptor Support
 
-Status: [ ] Not started
+Status: [x] Completed
 
 Target outcomes:
 
@@ -194,10 +198,10 @@ Target outcomes:
 
 Planned tasks:
 
-- [ ] Add decorator registration API for service wrapping.
-- [ ] Support multiple decorators per service with deterministic order.
-- [ ] Add examples for tracing/caching/retry wrappers.
-- [ ] Add performance benchmark baseline for decorated resolve path.
+- [x] Add decorator registration API (`Provider::with_decorator()`).
+- [x] Support multiple decorators per service with deterministic order (chain).
+- [x] Add examples for tracing/caching/retry wrappers.
+- [x] Add performance benchmark baseline for decorated resolve path.
 
 Acceptance criteria:
 
@@ -206,7 +210,7 @@ Acceptance criteria:
 
 ## Cross-Version Engineering Checklist
 
-- [ ] Keep `cargo test --workspace --all-features` green on each epic.
+- [x] Keep `cargo test --workspace --all-features` green on each epic.
 - [ ] Add one runnable example for every new user-facing feature.
 - [ ] Keep mdBook and crate README updated per epic.
 - [ ] Maintain backward compatibility unless explicitly marked breaking.

@@ -173,6 +173,135 @@ impl Module for FailingLifecycleModule {
     }
 }
 
+/// Module whose on_stop fails; used for shutdown aggregation tests.
+struct FailingShutdownModule;
+
+impl Module for FailingShutdownModule {
+    fn imports(&self) -> Vec<Box<dyn Module>> {
+        vec![Box::new(FailingShutdownImport)]
+    }
+
+    fn providers(&self, _injector: &Injector) {}
+
+    fn on_stop(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async {
+            Err(Error::module_lifecycle_failed(
+                "FailingShutdownModule",
+                "on_stop",
+                "root_stop_failed",
+            ))
+        })
+    }
+}
+
+struct FailingShutdownImport;
+
+impl Module for FailingShutdownImport {
+    fn providers(&self, _injector: &Injector) {}
+
+    fn on_stop(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async {
+            Err(Error::module_lifecycle_failed(
+                "FailingShutdownImport",
+                "on_stop",
+                "import_stop_failed",
+            ))
+        })
+    }
+}
+
+/// Module whose on_start fails (root + import); used for parallel bootstrap aggregation tests.
+struct FailingBootstrapModule;
+
+impl Module for FailingBootstrapModule {
+    fn imports(&self) -> Vec<Box<dyn Module>> {
+        vec![Box::new(FailingBootstrapImport)]
+    }
+
+    fn providers(&self, _injector: &Injector) {}
+
+    fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async {
+            Err(Error::module_lifecycle_failed(
+                "FailingBootstrapModule",
+                "on_start",
+                "root_start_failed",
+            ))
+        })
+    }
+}
+
+struct FailingBootstrapImport;
+
+impl Module for FailingBootstrapImport {
+    fn providers(&self, _injector: &Injector) {}
+
+    fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        Box::pin(async {
+            Err(Error::module_lifecycle_failed(
+                "FailingBootstrapImport",
+                "on_start",
+                "import_start_failed",
+            ))
+        })
+    }
+}
+
+/// Import succeeds, root fails on_start; used for rollback tests.
+struct RollbackTestModule {
+    log: EventLog,
+}
+
+impl Module for RollbackTestModule {
+    fn imports(&self) -> Vec<Box<dyn Module>> {
+        vec![Box::new(RollbackTestImport {
+            log: self.log.clone(),
+        })]
+    }
+
+    fn providers(&self, _injector: &Injector) {
+        push_event(&self.log, "providers:root".to_string());
+    }
+
+    fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        let log = self.log.clone();
+        Box::pin(async move {
+            push_event(&log, "on_start:root".to_string());
+            Err(Error::module_lifecycle_failed(
+                "RollbackTestModule",
+                "on_start",
+                "root_start_failed",
+            ))
+        })
+    }
+}
+
+struct RollbackTestImport {
+    log: EventLog,
+}
+
+impl Module for RollbackTestImport {
+    fn providers(&self, _injector: &Injector) {
+        push_event(&self.log, "providers:import".to_string());
+    }
+
+    fn on_start(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        let log = self.log.clone();
+        Box::pin(async move {
+            push_event(&log, "on_start:import".to_string());
+            Ok(())
+        })
+    }
+
+    fn on_stop(&self, _injector: Shared<Injector>) -> ModuleLifecycleFuture {
+        let log = self.log.clone();
+        Box::pin(async move {
+            push_event(&log, "on_stop:import".to_string());
+            Ok(())
+        })
+    }
+}
+
 // NestedImportModule with conditional thread safety
 #[cfg(not(feature = "thread-safe"))]
 struct NestedImportModule {

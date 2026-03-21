@@ -4,7 +4,7 @@
 
 ```toml
 [dependencies]
-fluxdi = "1.2.0"
+fluxdi = "1.2.1"
 ```
 
 For local workspace usage:
@@ -61,7 +61,7 @@ RUST_LOG=fluxdi=trace cargo run -p basic
 
 ```toml
 [dependencies]
-fluxdi = { version = "1.2.0", features = ["macros"] }
+fluxdi = { version = "1.2.1", features = ["macros"] }
 ```
 
 Then:

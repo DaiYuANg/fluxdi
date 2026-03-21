@@ -34,7 +34,7 @@ Or from crates.io (when published):
 
 ```toml
 [dependencies]
-fluxdi = "1.1.0"
+fluxdi = "1.2.1"
 ```
 
 ## 🚀 Quick Start
@@ -123,9 +123,9 @@ Serve locally:
 mdbook serve docs --open
 ```
 
-## � Examples
+## Examples
 
-FluxDI includes fourteen comprehensive examples showcasing different use cases and patterns:
+FluxDI includes sixteen comprehensive examples showcasing different use cases and patterns:
 
 ### 1. Basic Example
 **Location:** `examples/basic/`
@@ -138,10 +138,23 @@ A simple introduction to FluxDI fundamentals:
 
 **Run:**
 ```bash
-cargo run --example basic
+cargo run -p basic
 ```
 
-### 2. Complex Example (Advanced Patterns)
+### 2. Injectable Macro Example
+**Location:** `examples/injectable-macro/`
+
+Demonstrates `#[derive(Injectable)]` as an alternative to manual provider closures:
+- Same behavior as manual `Provider::root(|inj| { ... })`
+- Reduces boilerplate when all dependencies are `Shared<T>`
+- Side-by-side parity with `examples/basic`
+
+**Run:**
+```bash
+cargo run -p injectable-macro-example
+```
+
+### 3. Complex Example
 **Location:** `examples/complex/`
 
 Demonstrates enterprise-grade architecture with:
@@ -173,7 +186,7 @@ cd examples/complex
 ./test.sh
 ```
 
-### 3. Actix-web Example
+### 4. Actix-web Example
 **Location:** `examples/actix/`
 
 Minimal Actix-web integration with FluxDI extractors:
@@ -192,7 +205,7 @@ Then request:
 curl http://127.0.0.1:8081/hello
 ```
 
-### 4. Axum REST API Example
+### 5. Axum REST API Example
 **Location:** `examples/axum/`
 
 Real-world REST API integration with **Axum** web framework:
@@ -231,7 +244,7 @@ The test suite includes:
 - HTTP status code validation
 - JSON response parsing and assertion
 
-### 5. Axum Lifecycle Example
+### 6. Axum Lifecycle Example
 **Location:** `examples/axum-lifecycle/`
 
 Demonstrates module lifecycle startup with async hooks:
@@ -245,7 +258,7 @@ cd examples/axum-lifecycle
 cargo run
 ```
 
-### 6. Module Sync Bootstrap Example
+### 7. Module Sync Bootstrap Example
 **Location:** `examples/module-sync/`
 
 Minimal module-centric synchronous startup:
@@ -258,7 +271,7 @@ cd examples/module-sync
 cargo run
 ```
 
-### 7. Module Async Bootstrap Example
+### 8. Module Async Bootstrap Example
 **Location:** `examples/module-async/`
 
 Async instance registration and lifecycle orchestration:
@@ -272,7 +285,7 @@ cd examples/module-async
 cargo run
 ```
 
-### 8. SeaORM SQLite Module Example
+### 9. SeaORM SQLite Module Example
 **Location:** `examples/seaorm-sqlite/`
 
 SeaORM + SQLite integration through FluxDI module lifecycle:
@@ -286,7 +299,7 @@ cd examples/seaorm-sqlite
 cargo run
 ```
 
-### 9. Dual HTTP Random-Port Example
+### 10. Dual HTTP Random-Port Example
 **Location:** `examples/dual-http-random-port/`
 
 Runs two HTTP services in one module lifecycle:
@@ -300,7 +313,7 @@ cd examples/dual-http-random-port
 cargo run
 ```
 
-### 10. Mixed Sync + Async Module Example
+### 11. Mixed Sync + Async Module Example
 **Location:** `examples/module-mixed-sync-async/`
 
 Demonstrates sync and async providers in the same module:
@@ -314,7 +327,7 @@ cd examples/module-mixed-sync-async
 cargo run
 ```
 
-### 11. Named Bindings Example
+### 12. Named Bindings Example
 **Location:** `examples/named-bindings/`
 
 Demonstrates multiple implementations for one trait via names:
@@ -328,7 +341,7 @@ cd examples/named-bindings
 cargo run
 ```
 
-### 12. Multi-binding Pipeline Example
+### 13. Multi-binding Pipeline Example
 **Location:** `examples/multi-binding-pipeline/`
 
 Demonstrates plugin/middleware pipeline composition:
@@ -342,7 +355,7 @@ cd examples/multi-binding-pipeline
 cargo run
 ```
 
-### 13. Graph Tooling Example
+### 14. Graph Tooling Example
 **Location:** `examples/graph-tooling/`
 
 Demonstrates graph export and validation:
@@ -356,7 +369,20 @@ cd examples/graph-tooling
 cargo run
 ```
 
-### 14. Scoped Context Example
+### 15. Decorator Example
+**Location:** `examples/decorator/`
+
+Demonstrates `Provider::with_decorator()` for cross-cutting composition:
+- Wraps services with logging, caching, or retry without modifying business logic
+- Multiple decorators chain with deterministic order
+- Works with trait objects
+
+**Run:**
+```bash
+cargo run -p decorator-example
+```
+
+### 16. Scoped Context Example
 **Location:** `examples/scoped-context/`
 
 Demonstrates request/task level scope isolation:
@@ -370,7 +396,7 @@ cd examples/scoped-context
 cargo run
 ```
 
-## �📖 Usage Guide
+## Usage Guide
 
 ### Service Registration
 
@@ -910,6 +936,8 @@ cargo run
 
 Use `Application::bootstrap().await` and `Application::shutdown().await` as the unified lifecycle APIs.
 
+For production patterns (graceful shutdown, timeouts, background tasks), see the **Production Patterns** section in the docs (`mdbook serve docs`).
+
 ```rust,no_run
 use fluxdi::{Application, Error, Injector, Module, Shared, module::ModuleLifecycleFuture};
 
@@ -1035,6 +1063,9 @@ FluxDI exposes a small set of feature flags. See `fluxdi/Cargo.toml` for the aut
 - `async-factory` (optional) — enables `Provider::*_async` and `Injector::*_resolve_async` APIs.
 - `resource-limit-async` (optional) — uses Tokio semaphore for non-blocking async waits in resource limits.
 - `macros` (optional) — enables `#[derive(Injectable)]` via `fluxdi-macros`.
+- `lifecycle` (optional) — enables `BootstrapOptions`/`ShutdownOptions` timeout support for production environments.
+
+Decorators (`Provider::with_decorator()`) work with any feature set; no extra flag required.
 
 The crate default is currently `default = ["debug"]`. If you need multithreaded use, enable `thread-safe`.
 
@@ -1101,13 +1132,13 @@ cargo clippy -- -D warnings
 - [x] **Axum Auto-Resolve Plugin**: `fluxdi::axum::Resolved<T>` extractor for per-handler resolution
 - [ ] **Rocket Integration**: Layer and extractor support for Rocket web framework
 
-### �️ Architectural Patterns
+### Architectural Patterns
 - [x] **Repository Pattern**: Demonstrated in complex example with SQLite repositories
 - [x] **Layered Architecture**: Clean separation of domain, application, and infrastructure layers
 - [x] **Use Case Pattern**: Business logic encapsulated in use cases with DI
 - [x] **Web Framework Integration**: Explored with Axum + Actix-web
 
-### �🛠️ Developer Experience
+### Developer Experience
 - [x] **Derive Macros**: Auto-generate factory functions from service structs (`#[derive(Injectable)]`)
 - [x] **Error Suggestions**: Better error messages with fix suggestions
 

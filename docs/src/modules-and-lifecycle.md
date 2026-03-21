@@ -11,6 +11,65 @@ For async startup/shutdown orchestration, use:
 
 Sync-only bootstrapping is still available through `bootstrap_sync()`.
 
+## Lifecycle Options (timeout)
+
+Enable the `lifecycle` feature for production-style bootstrap and shutdown options:
+
+```toml
+[dependencies]
+fluxdi = { version = "1.2.2", features = ["lifecycle"] }
+```
+
+```rust
+use std::time::Duration;
+use fluxdi::{Application, BootstrapOptions, ShutdownOptions, Injector, Module, Provider, Shared};
+use fluxdi::module::ModuleLifecycleFuture;
+
+struct AppModule;
+
+impl Module for AppModule {
+    fn configure(&self, injector: &Injector) -> Result<(), fluxdi::Error> {
+        injector.provide::<String>(Provider::root(|_| Shared::new("ok".to_string())));
+        Ok(())
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), fluxdi::Error> {
+    let mut app = Application::new(AppModule);
+
+    // Bootstrap with a 30s timeout
+    let opts = BootstrapOptions::default().with_timeout(Duration::from_secs(30));
+    app.bootstrap_with_options(opts).await?;
+
+    // Shutdown with a 10s timeout
+    let opts = ShutdownOptions::default().with_timeout(Duration::from_secs(10));
+    app.shutdown_with_options(opts).await?;
+
+    Ok(())
+}
+```
+
+When a timeout is exceeded, an error is returned instead of hanging indefinitely.
+
+## Shutdown Error Aggregation
+
+If multiple modules fail during `on_stop()`, FluxDI attempts to stop all modules
+and returns a single aggregated error listing every failure:
+
+```
+Shutdown failed: 2 module(s) reported errors:
+  1) Module lifecycle failed: module=WebModule, phase=on_stop, details=...
+  2) Module lifecycle failed: module=DatabaseModule, phase=on_stop, details=...
+```
+
+This makes it easier to diagnose and fix shutdown issues in production.
+
+For recommended patterns (graceful shutdown, timeouts, background tasks), see
+[Production Patterns](./production-patterns.md).
+
+## Basic Example
+
 ```rust
 use fluxdi::{Application, Error, Injector, Module, Provider, Shared, module::ModuleLifecycleFuture};
 

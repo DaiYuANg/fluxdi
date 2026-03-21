@@ -50,9 +50,9 @@ Circular detection is already thread-local (`ResolveGuard`) and is not a major c
 
 ### Phase 3 - Reduce Resolve Path Overhead
 
-- Minimize repeated map lookups in `try_resolve`.
+- [x] Fast-path optimization: skip `ResolveGuard::push` on cache hit (no recursion, no circular dep).
+- Minimize repeated map lookups in `try_resolve` (cache-miss path).
 - Cache resolved provider metadata per call path (local variable reuse, not global mutable cache).
-- Keep `ResolveGuard` unchanged unless profiling shows it as a bottleneck.
 
 ### Phase 4 - Stabilization
 
@@ -60,31 +60,30 @@ Circular detection is already thread-local (`ResolveGuard`) and is not a major c
 - Add regression guardrails in CI (benchmark job + threshold report).
 - Document when `lock-free` is recommended.
 
-## Baseline Results (2026-03-05)
+## Baseline Results
+
+**2026-03-21** (Windows, release, criterion default):
+
+| Benchmark | default | thread-safe | lock-free |
+| --- | --- | --- | --- |
+| `resolve_cached` | ~12 ns | ~36 ns | ~35 ns |
+| `resolve_transient` | ~102 ns | ~117 ns | ~147 ns |
+| `provider_registration` | ~152 ns | ~327 ns | ~3.8 µs |
+| `resolve_concurrent/2` | — | ~126 µs | ~178 µs |
+| `resolve_concurrent/8` | — | ~431 µs | ~334 µs ✓ |
+| `resolve_concurrent/32` | — | ~1.34 ms | ~1.23 ms ✓ |
 
 Command:
 
-- `cargo bench -p fluxdi --bench injector_baseline --features thread-safe -- --sample-size 10 --measurement-time 1 --warm-up-time 1`
-- `cargo bench -p fluxdi --bench injector_baseline --features "thread-safe,lock-free" -- --sample-size 10 --measurement-time 1 --warm-up-time 1`
+- `cargo bench -p fluxdi`
+- `cargo bench -p fluxdi --features thread-safe`
+- `cargo bench -p fluxdi --features "thread-safe,lock-free"`
 
-Criterion summary (lower is better):
+Summary:
 
-| Benchmark | `thread-safe` | `thread-safe,lock-free` |
-| --- | --- | --- |
-| `resolve_cached` | 32.55-33.73 ns | 38.95-40.64 ns |
-| `resolve_transient` | 134.94-146.99 ns | 139.66-140.53 ns |
-| `resolve_concurrent/2` | 229.78-233.93 us | 232.21-235.94 us |
-| `resolve_concurrent/4` | 399.26-403.28 us | 386.93-389.26 us |
-| `resolve_concurrent/8` | 698.57-715.08 us | 696.31-704.14 us |
-| `resolve_concurrent/16` | 1.3177-1.3311 ms | 1.3182-1.3882 ms |
-| `resolve_concurrent/32` | 2.6282-2.6867 ms | 2.1476-2.1694 ms |
-| `provider_registration` | 198.43-207.22 ns | 430.83-434.26 ns |
-
-Initial reading:
-
-- `lock-free` helps high-concurrency cached resolve (notably at 32 threads).
-- `lock-free` hurts registration cost and single-thread cached resolve.
-- Keep `lock-free` opt-in for read-heavy/high-contention paths.
+- Default (Rc) is fastest for single-thread.
+- `lock-free` helps high-concurrency cached resolve (8+ threads).
+- `lock-free` significantly hurts provider registration; use only when registration is rare.
 
 ## Acceptance Criteria
 
@@ -108,7 +107,7 @@ Mitigation: keep optimization optional and benchmark-driven.
 - Baseline matrix health check: completed on 2026-03-05
 - Phase 1 (benchmark baseline): completed on 2026-03-05
 - Phase 2 (`lock-free` feature + `DashMap` stores): completed on 2026-03-05
-- Phase 3+: planned
+- Phase 3 (partial): cache-hit fast path implemented
 - Last aligned with codebase: 2026-03-05
 
 

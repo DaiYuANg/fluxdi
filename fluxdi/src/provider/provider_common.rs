@@ -77,4 +77,67 @@ impl<T: ?Sized + 'static> Provider<T> {
         self.dependency_hints.push(DependencyHint::all::<D>());
         self
     }
+
+    /// Wraps resolved instances with a decorator (e.g. logging, caching).
+    ///
+    /// The decorator receives the base instance and returns a wrapped instance.
+    /// Order is deterministic: base factory runs first, then decorator.
+    ///
+    /// For multiple decorators, chain: `provider.with_decorator(d1).with_decorator(d2)`.
+    #[cfg(not(feature = "thread-safe"))]
+    pub fn with_decorator<F>(self, decorator: F) -> Self
+    where
+        F: Fn(Shared<T>) -> Shared<T> + 'static,
+    {
+        let Self {
+            scope,
+            factory,
+            #[cfg(feature = "async-factory")]
+            async_factory,
+            limits,
+            dependency_hints,
+            limiter,
+        } = self;
+        Self {
+            scope,
+            factory: Box::new(move |inj| {
+                let instance = factory(inj);
+                Instance::new(decorator(instance.value()))
+            }),
+            #[cfg(feature = "async-factory")]
+            async_factory,
+            limits,
+            dependency_hints,
+            limiter,
+        }
+    }
+
+    /// Wraps resolved instances with a decorator (thread-safe).
+    #[cfg(feature = "thread-safe")]
+    pub fn with_decorator<F>(self, decorator: F) -> Self
+    where
+        F: Fn(Shared<T>) -> Shared<T> + Send + Sync + 'static,
+    {
+        let Self {
+            scope,
+            factory,
+            #[cfg(feature = "async-factory")]
+            async_factory,
+            limits,
+            dependency_hints,
+            limiter,
+        } = self;
+        Self {
+            scope,
+            factory: Box::new(move |inj| {
+                let instance = factory(inj);
+                Instance::new(decorator(instance.value()))
+            }),
+            #[cfg(feature = "async-factory")]
+            async_factory,
+            limits,
+            dependency_hints,
+            limiter,
+        }
+    }
 }
