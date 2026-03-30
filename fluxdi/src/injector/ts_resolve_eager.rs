@@ -1,5 +1,18 @@
 use super::*;
+use std::collections::VecDeque;
 use std::pin::Pin;
+
+/// Intermediate representation of the eager resolution graph.
+struct EagerGraph {
+    node_deps: HashMap<String, Vec<String>>,
+    single_ids: HashMap<TypeId, String>,
+    #[allow(dead_code)]
+    named_ids: HashMap<NamedTypeKey, String>,
+    #[cfg(feature = "dynamic")]
+    #[allow(dead_code)]
+    dynamic_ids: HashMap<String, String>,
+    resolvers: HashMap<String, EagerResolverFn>,
+}
 
 impl Injector {
     /// Resolves all registered async providers in dependency order,
@@ -12,12 +25,63 @@ impl Injector {
     /// Requires that `.with_dependency()` hints accurately reflect actual
     /// dependencies. Call `validate_graph()` beforehand to check.
     pub async fn resolve_all_eager(&self) -> Result<(), Error> {
-        // 1. Collect graph state and eager resolvers
+        let graph = self.build_eager_graph();
+        self.execute_eager_waves(graph.node_deps, &graph.resolvers)
+            .await
+    }
+
+    /// Resolves a single typed provider and all its transitive dependencies
+    /// in correct topological order with maximum parallelism.
+    ///
+    /// Only the specified type and the providers it transitively depends on
+    /// (via `.with_dependency()` hints) are resolved. All other registered
+    /// providers are left untouched.
+    pub async fn resolve_eager_for<T>(&self) -> Result<(), Error>
+    where
+        T: ?Sized + Send + Sync + 'static,
+    {
+        self.resolve_eager_roots(&[TypeId::of::<T>()]).await
+    }
+
+    /// Resolves multiple typed providers and all their transitive dependencies
+    /// in correct topological order with maximum parallelism.
+    ///
+    /// Only the specified types and the providers they transitively depend on
+    /// (via `.with_dependency()` hints) are resolved. All other registered
+    /// providers are left untouched.
+    pub async fn resolve_eager_roots(&self, roots: &[TypeId]) -> Result<(), Error> {
+        let graph = self.build_eager_graph();
+
+        // Map root TypeIds to node_ids
+        let root_node_ids: Vec<String> = roots
+            .iter()
+            .filter_map(|type_id| graph.single_ids.get(type_id).cloned())
+            .collect();
+
+        if root_node_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Compute transitive closure: all nodes reachable from roots via dependencies
+        let reachable = transitive_closure(&root_node_ids, &graph.node_deps);
+
+        // Filter graph to only reachable nodes
+        let filtered_deps: HashMap<String, Vec<String>> = graph
+            .node_deps
+            .into_iter()
+            .filter(|(node, _)| reachable.contains(node))
+            .collect();
+
+        self.execute_eager_waves(filtered_deps, &graph.resolvers)
+            .await
+    }
+
+    /// Builds the full eager resolution graph from all registered providers.
+    fn build_eager_graph(&self) -> EagerGraph {
         let mut state = GraphBuildState::default();
         self.collect_graph_state(&mut state);
         let resolvers = self.collect_eager_resolvers();
 
-        // 2. Build node_id maps and dependency adjacency
         let mut single_ids: HashMap<TypeId, String> = HashMap::new();
         let mut named_ids: HashMap<NamedTypeKey, String> = HashMap::new();
         #[cfg(feature = "dynamic")]
@@ -107,13 +171,27 @@ impl Injector {
             node_deps.insert(node_id, deps);
         }
 
-        // 3. Topological sort into parallel waves
+        EagerGraph {
+            node_deps,
+            single_ids,
+            named_ids,
+            #[cfg(feature = "dynamic")]
+            dynamic_ids,
+            resolvers,
+        }
+    }
+
+    /// Executes topological waves over the given node dependency graph.
+    async fn execute_eager_waves(
+        &self,
+        node_deps: HashMap<String, Vec<String>>,
+        resolvers: &HashMap<String, EagerResolverFn>,
+    ) -> Result<(), Error> {
         let waves = topological_waves(&node_deps)?;
 
         type BoxedResolveFuture =
             Pin<Box<dyn std::future::Future<Output = Result<(), Error>> + Send>>;
 
-        // 4. Execute each wave concurrently
         for (wave_index, wave) in waves.iter().enumerate() {
             let mut futures: Vec<BoxedResolveFuture> = Vec::new();
 
@@ -175,6 +253,31 @@ impl Injector {
 
         resolvers
     }
+}
+
+/// Computes the set of all nodes transitively reachable from `roots`
+/// by following dependency edges.
+fn transitive_closure(
+    roots: &[String],
+    node_deps: &HashMap<String, Vec<String>>,
+) -> HashSet<String> {
+    let mut reachable = HashSet::new();
+    let mut queue: VecDeque<String> = roots.iter().cloned().collect();
+
+    while let Some(node) = queue.pop_front() {
+        if !reachable.insert(node.clone()) {
+            continue;
+        }
+        if let Some(deps) = node_deps.get(&node) {
+            for dep in deps {
+                if node_deps.contains_key(dep) && !reachable.contains(dep) {
+                    queue.push_back(dep.clone());
+                }
+            }
+        }
+    }
+
+    reachable
 }
 
 /// Groups nodes into topological waves using Kahn's algorithm.

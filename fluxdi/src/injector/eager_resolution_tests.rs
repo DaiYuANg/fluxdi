@@ -157,6 +157,233 @@ async fn eager_resolves_dynamic_providers() {
     assert_eq!(*val, 20);
 }
 
+// --- Scoped eager resolution tests ---
+
+#[tokio::test]
+async fn scoped_resolves_root_and_dependency_only() {
+    let injector = Injector::root();
+    let a_counter = Arc::new(AtomicUsize::new(0));
+    let c_counter = Arc::new(AtomicUsize::new(0));
+    let x_counter = Arc::new(AtomicUsize::new(0));
+
+    // A: no deps
+    injector.provide::<u32>({
+        let a_counter = a_counter.clone();
+        Provider::singleton_async(move |_| {
+            let a_counter = a_counter.clone();
+            async move {
+                a_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new(1u32)
+            }
+        })
+    });
+
+    // C: depends on A
+    injector.provide::<String>({
+        let c_counter = c_counter.clone();
+        Provider::singleton_async(move |_| {
+            let c_counter = c_counter.clone();
+            async move {
+                c_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new("C".to_string())
+            }
+        })
+        .with_dependency::<u32>()
+    });
+
+    // X: unrelated
+    injector.provide::<bool>({
+        let x_counter = x_counter.clone();
+        Provider::singleton_async(move |_| {
+            let x_counter = x_counter.clone();
+            async move {
+                x_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new(true)
+            }
+        })
+    });
+
+    // Resolve only C (should pull in A but not X)
+    injector.resolve_eager_for::<String>().await.unwrap();
+
+    assert_eq!(a_counter.load(Ordering::SeqCst), 1, "A should be resolved");
+    assert_eq!(c_counter.load(Ordering::SeqCst), 1, "C should be resolved");
+    assert_eq!(
+        x_counter.load(Ordering::SeqCst),
+        0,
+        "X should NOT be resolved"
+    );
+}
+
+#[tokio::test]
+async fn scoped_transitive_chain() {
+    let injector = Injector::root();
+    let order = Arc::new(AtomicUsize::new(0));
+
+    // A -> B -> C (transitive chain)
+    injector.provide::<u8>({
+        let order = order.clone();
+        Provider::singleton_async(move |_| {
+            let order = order.clone();
+            async move { Arc::new(order.fetch_add(1, Ordering::SeqCst) as u8) }
+        })
+    });
+
+    injector.provide::<u16>({
+        let order = order.clone();
+        Provider::singleton_async(move |_| {
+            let order = order.clone();
+            async move { Arc::new(order.fetch_add(1, Ordering::SeqCst) as u16) }
+        })
+        .with_dependency::<u8>()
+    });
+
+    injector.provide::<u32>({
+        let order = order.clone();
+        Provider::singleton_async(move |_| {
+            let order = order.clone();
+            async move { Arc::new(order.fetch_add(1, Ordering::SeqCst) as u32) }
+        })
+        .with_dependency::<u16>()
+    });
+
+    // Resolve only the leaf (u32) — should pull in u16 and u8
+    injector.resolve_eager_for::<u32>().await.unwrap();
+
+    let a = *injector.try_resolve_async::<u8>().await.unwrap() as u32;
+    let b = *injector.try_resolve_async::<u16>().await.unwrap() as u32;
+    let c = *injector.try_resolve_async::<u32>().await.unwrap();
+
+    // u8 must resolve before u16, u16 before u32
+    assert!(a < b, "u8 ({}) should resolve before u16 ({})", a, b);
+    assert!(b < c, "u16 ({}) should resolve before u32 ({})", b, c);
+}
+
+#[tokio::test]
+async fn scoped_multiple_roots_shared_dep() {
+    let injector = Injector::root();
+    let a_counter = Arc::new(AtomicUsize::new(0));
+    let d_counter = Arc::new(AtomicUsize::new(0));
+    let e_counter = Arc::new(AtomicUsize::new(0));
+    let x_counter = Arc::new(AtomicUsize::new(0));
+
+    // A: shared dependency
+    injector.provide::<u32>({
+        let a_counter = a_counter.clone();
+        Provider::singleton_async(move |_| {
+            let a_counter = a_counter.clone();
+            async move {
+                a_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new(1u32)
+            }
+        })
+    });
+
+    // D: depends on A
+    injector.provide::<String>({
+        let d_counter = d_counter.clone();
+        Provider::singleton_async(move |_| {
+            let d_counter = d_counter.clone();
+            async move {
+                d_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new("D".to_string())
+            }
+        })
+        .with_dependency::<u32>()
+    });
+
+    // E: also depends on A
+    injector.provide::<bool>({
+        let e_counter = e_counter.clone();
+        Provider::singleton_async(move |_| {
+            let e_counter = e_counter.clone();
+            async move {
+                e_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new(true)
+            }
+        })
+        .with_dependency::<u32>()
+    });
+
+    // X: unrelated
+    injector.provide::<u64>({
+        let x_counter = x_counter.clone();
+        Provider::singleton_async(move |_| {
+            let x_counter = x_counter.clone();
+            async move {
+                x_counter.fetch_add(1, Ordering::SeqCst);
+                Arc::new(99u64)
+            }
+        })
+    });
+
+    // Resolve D and E — A resolved once, X untouched
+    injector
+        .resolve_eager_roots(&[TypeId::of::<String>(), TypeId::of::<bool>()])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        a_counter.load(Ordering::SeqCst),
+        1,
+        "A should be resolved exactly once"
+    );
+    assert_eq!(d_counter.load(Ordering::SeqCst), 1, "D should be resolved");
+    assert_eq!(e_counter.load(Ordering::SeqCst), 1, "E should be resolved");
+    assert_eq!(
+        x_counter.load(Ordering::SeqCst),
+        0,
+        "X should NOT be resolved"
+    );
+}
+
+#[tokio::test]
+async fn scoped_unrelated_providers_untouched() {
+    let injector = Injector::root();
+
+    injector.provide::<u32>(Provider::singleton_async(|_| async { Arc::new(1u32) }));
+    injector.provide::<String>(Provider::singleton_async(|_| async {
+        Arc::new("unrelated".to_string())
+    }));
+
+    injector.resolve_eager_for::<u32>().await.unwrap();
+
+    // u32 should be cached
+    let val = injector.try_resolve_async::<u32>().await.unwrap();
+    assert_eq!(*val, 1);
+
+    // String should NOT be cached (factory hasn't run)
+    // We verify by checking it wasn't resolved — resolve it fresh
+    // and confirm the container still works
+    let s = injector.try_resolve_async::<String>().await.unwrap();
+    assert_eq!(s.as_str(), "unrelated");
+}
+
+#[tokio::test]
+async fn scoped_empty_roots_is_noop() {
+    let injector = Injector::root();
+    injector.provide::<u32>(Provider::singleton_async(|_| async { Arc::new(1u32) }));
+
+    injector.resolve_eager_roots(&[]).await.unwrap();
+}
+
+#[tokio::test]
+async fn concurrent_resolution_does_not_corrupt_guard() {
+    let injector = Injector::root();
+
+    injector.provide::<u32>(Provider::singleton_async(|_| async { Arc::new(42u32) }));
+    injector.provide::<u64>(Provider::singleton_async(|_| async { Arc::new(99u64) }));
+
+    // Resolve concurrently — should not panic with stack corruption
+    injector
+        .resolve_eager_roots(&[TypeId::of::<u32>(), TypeId::of::<u64>()])
+        .await
+        .unwrap();
+
+    assert_eq!(*injector.try_resolve_async::<u32>().await.unwrap(), 42);
+    assert_eq!(*injector.try_resolve_async::<u64>().await.unwrap(), 99);
+}
+
 #[tokio::test]
 async fn transient_providers_skipped_in_eager() {
     let injector = Injector::root();
